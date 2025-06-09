@@ -36,6 +36,68 @@ from api.utils.api_utils import get_json_result
 import xxhash
 import re
 
+@manager.route('/batch_upload', methods=['POST'])  # noqa: F821
+@login_required
+@validate_request("doc_id", "content", "important_keywords", "questions")
+def batch_upload():
+    req = request.json
+    doc_id = req["doc_id"]
+    content_list = req["content"]
+    important_keywords_list = req["important_keywords"]
+    questions_list = req["questions"]
+
+    try:
+        tenant_id = DocumentService.get_tenant_id(req["doc_id"])
+        if not tenant_id:
+            return get_data_error_result(message="Tenant not found!")
+        e, doc = DocumentService.get_by_id(doc_id)
+        if not e:
+            return get_data_error_result(message="Document not found!")
+        kb_ids = KnowledgebaseService.get_kb_ids(tenant_id)
+
+        # 遍历每个内容块并上传
+        for i, content in enumerate(content_list):
+            important_keywords = important_keywords_list[i]
+            questions = questions_list[i]
+
+            # 生成 chunk_id
+            chunk_id = xxhash.xxh64((content + str(doc_id)).encode("utf-8")).hexdigest()
+            d = {
+                "id": chunk_id,
+                "content_ltks": rag_tokenizer.tokenize(content),
+                "content_with_weight": content
+            }
+            d["content_sm_ltks"] = rag_tokenizer.fine_grained_tokenize(d["content_ltks"])
+            d["important_kwd"] = important_keywords
+            d["important_tks"] = rag_tokenizer.tokenize(" ".join(important_keywords))
+            d["question_kwd"] = questions
+            d["question_tks"] = rag_tokenizer.tokenize("\n".join(questions))
+            d["create_time"] = str(datetime.datetime.now()).replace("T", " ")[:19]
+            d["create_timestamp_flt"] = datetime.datetime.now().timestamp()
+
+            d["kb_id"] = [doc.kb_id]
+            d["docnm_kwd"] = doc.name
+            d["title_tks"] = rag_tokenizer.tokenize(doc.name)
+            d["doc_id"] = doc.id
+
+            embd_id = DocumentService.get_embd_id(req["doc_id"])
+            embd_mdl = LLMBundle(tenant_id, LLMType.EMBEDDING.value, embd_id)
+
+            v, c = embd_mdl.encode([doc.name, content if not d["question_kwd"] else "\n".join(d["question_kwd"])])
+            v = 0.1 * v[0] + 0.9 * v[1]
+            d["q_%d_vec" % len(v)] = v.tolist()
+
+            settings.docStoreConn.insert([d], search.index_name(tenant_id), doc.kb_id)
+
+            DocumentService.increment_chunk_num(
+                doc.id, doc.kb_id, c, 1, 0)
+
+        return get_json_result(data={"message": "Batch upload successful"})
+
+    except Exception as e:
+        return server_error_response(e)
+
+
 
 @manager.route('/list', methods=['POST'])  # noqa: F821
 @login_required

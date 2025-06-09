@@ -209,7 +209,7 @@ class Canvas:
                             if c not in waiting:
                                 waiting.append(c)
                             continue
-                    yield "*'{}'* is running...🕞".format(self.get_component_name(c))
+                    yield "*'{}'* 思考中...🕞".format(self.get_component_name(c))
 
                     if cpn.component_name.lower() == "iteration":
                         st_cpn = cpn.get_start()

@@ -16,7 +16,7 @@
 import json
 import logging
 from abc import ABC
-
+import re
 import pandas as pd
 
 from api.db import LLMType
@@ -57,8 +57,10 @@ class Retrieval(ComponentBase, ABC):
     component_name = "Retrieval"
 
     def _run(self, history, **kwargs):
-        query = self.get_input()
-        query = str(query["content"][0]) if "content" in query else ""
+        text = self.get_input()
+        text = str(text["content"][0]) if "content" in text else ""
+        # 处理多轮对话
+        query = ' '.join(f'USER:{segment.strip()}' for segment in re.findall(r'USER:(.*?)(?=ASSISTANT:|$)', text, re.DOTALL)) if "USER:" in text else text
 
         kb_ids: list[str] = self._param.kb_ids or []
 

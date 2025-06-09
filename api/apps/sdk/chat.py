@@ -105,7 +105,7 @@ def create(tenant_id):
       Here is the knowledge base:
       {knowledge}
       The above is the knowledge base.""",
-        "prologue": "Hi! I'm your assistant, what can I do for you?",
+        "prologue": "你好，我是你的助理，请问有什么可以帮助？",
         "parameters": [
             {"key": "knowledge", "optional": False}
         ],
@@ -341,14 +341,14 @@ def list_chat(tenant_id):
         res["llm"] = res.pop("llm_setting")
         res["llm"]["model_name"] = res.pop("llm_id")
         kb_list = []
-        for kb_id in res["kb_ids"]:
-            kb = KnowledgebaseService.query(id=kb_id)
-            if not kb:
-                logging.warning(f"The kb {kb_id} does not exist.")
-                continue
-            kb_list.append(kb[0].to_json())
-        del res["kb_ids"]
-        res["datasets"] = kb_list
+        # for kb_id in res["kb_ids"]:
+        #     kb = KnowledgebaseService.query(id=kb_id)
+        #     if not kb:
+        #         return get_error_data_result(message=f"Don't exist the kb {kb_id}")
+        #     kb_list.append(kb[0].to_json())
+        # del res["kb_ids"]
+        res["datasets"] = res["kb_ids"]
+        # res["datasets"] = kb_list
         res["avatar"] = res.pop("icon")
         list_assts.append(res)
     return get_result(data=list_assts)

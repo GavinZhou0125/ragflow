@@ -491,12 +491,12 @@ class FileService(CommonService):
             ParserType.AUDIO.value: audio,
             ParserType.EMAIL.value: email
         }
-        parser_config = {"chunk_token_num": 16096, "delimiter": "\n!?;。；！？", "layout_recognize": "Plain Text"}
+        parser_config = {"chunk_token_num": 16096, "delimiter": "\n!?;。；！？", "layout_recognize": "DeepDOC"}
         exe = ThreadPoolExecutor(max_workers=12)
         threads = []
         for file in file_objs:
             kwargs = {
-                "lang": "English",
+                "lang": "Chinese",
                 "callback": dummy,
                 "parser_config": parser_config,
                 "from_page": 0,

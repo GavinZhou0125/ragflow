@@ -35,6 +35,7 @@ from api.utils.api_utils import get_result, token_required, get_data_openai, get
 from api.db.services.llm_service import LLMBundle
 
 
+from flask import jsonify, request, Response
 
 @manager.route("/chats/<chat_id>/sessions", methods=["POST"])  # noqa: F821
 @token_required
@@ -121,6 +122,7 @@ def create_agent_session(tenant_id, agent_id):
     conv = {"id": get_uuid(), "dialog_id": cvs.id, "user_id": user_id, "message": [{"role": "assistant", "content": canvas.get_prologue()}], "source": "agent", "dsl": cvs.dsl}
     API4ConversationService.save(**conv)
     conv["agent_id"] = conv.pop("dialog_id")
+    conv.pop("dsl")
     return get_result(data=conv)
 
 
@@ -399,7 +401,37 @@ def agents_completion_openai_compatibility (tenant_id, agent_id):
 @token_required
 def agent_completions(tenant_id, agent_id):
     req = request.json
+    # 配合对话过程中上传文件 支持from表单提交
+    if not request.is_json:
+        req = request.form.copy()
     cvs = UserCanvasService.query(user_id=tenant_id, id=agent_id)
+    # 对话过程中上传文件逻辑
+    cvsTail = cvs[len(cvs) - 1]
+    files = request.files
+    if not isinstance(cvsTail.dsl, str):
+        cvsTail.dsl = json.dumps(cvsTail.dsl, ensure_ascii=False)
+    canvas = Canvas(cvsTail.dsl, tenant_id)
+    query = canvas.get_preset_param()
+    if query and req.get("session_id") and files is not None:
+        for ele in query:
+            if ele["type"] == "file":
+                if files.get(ele["key"]):
+                    upload_file = files.get(ele["key"])
+                    file_content = FileService.parse_docs([upload_file], tenant_id)
+                    file_name = upload_file.filename
+                    # 更新req中的question字段为文件内容
+                    req["question"] = req.get("question") + '\n 以下是文件内容' + file_content
+                #     if ele.get("value") :
+                #         ele["value"] = ele["value"] + "\n" + file_name + "\n" + file_content
+                #     else:
+                #         ele["value"] = file_name + "\n" + file_content
+                # else:
+                #     if "value" in ele:
+                #         ele.pop("value")
+        # API4ConversationService.update_by_id(req["session_id"], {
+        #     "dsl": json.loads(str(canvas))
+        # })
+
     if not cvs:
         return get_error_data_result(f"You don't own the agent {agent_id}")
     if req.get("session_id"):
@@ -431,7 +463,9 @@ def agent_completions(tenant_id, agent_id):
         return resp
     try:
         for answer in agent_completion(tenant_id, agent_id, **req):
-            return get_result(data=answer)
+            #resp = Response(answer, mimetype="application/json")
+            #resp.headers.add_header("Content-Type", "application/json")
+            return answer
     except Exception as e:
         return get_error_data_result(str(e))
 
@@ -539,6 +573,7 @@ def list_agent_session(tenant_id, agent_id):
                     messages[message_num]["reference"] = chunk_list
                 message_num += 1
         del conv["reference"]
+        del conv["dsl"]
     return get_result(data=convs)
 
 
@@ -547,7 +582,7 @@ def list_agent_session(tenant_id, agent_id):
 def delete(tenant_id, chat_id):
     if not DialogService.query(id=chat_id, tenant_id=tenant_id, status=StatusEnum.VALID.value):
         return get_error_data_result(message="You don't own the chat")
-    
+
     errors = []
     success_count = 0
     req = request.json
@@ -563,10 +598,10 @@ def delete(tenant_id, chat_id):
             conv_list.append(conv.id)
     else:
         conv_list = ids
-    
+
     unique_conv_ids, duplicate_messages = check_duplicate_ids(conv_list, "session")
     conv_list = unique_conv_ids
-    
+
     for id in conv_list:
         conv = ConversationService.query(id=id, dialog_id=chat_id)
         if not conv:
@@ -574,7 +609,7 @@ def delete(tenant_id, chat_id):
             continue
         ConversationService.delete_by_id(id)
         success_count += 1
-    
+
     if errors:
         if success_count > 0:
             return get_result(
@@ -583,16 +618,16 @@ def delete(tenant_id, chat_id):
             )
         else:
             return get_error_data_result(message="; ".join(errors))
-    
+
     if duplicate_messages:
         if success_count > 0:
             return get_result(
-                message=f"Partially deleted {success_count} sessions with {len(duplicate_messages)} errors", 
+                message=f"Partially deleted {success_count} sessions with {len(duplicate_messages)} errors",
                 data={"success_count": success_count, "errors": duplicate_messages}
             )
         else:
             return get_error_data_result(message=";".join(duplicate_messages))
-    
+
     return get_result()
 
 
@@ -632,7 +667,7 @@ def delete_agent_session(tenant_id, agent_id):
             continue
         API4ConversationService.delete_by_id(session_id)
         success_count += 1
-    
+
     if errors:
         if success_count > 0:
             return get_result(
@@ -641,16 +676,16 @@ def delete_agent_session(tenant_id, agent_id):
             )
         else:
             return get_error_data_result(message="; ".join(errors))
-    
+
     if duplicate_messages:
         if success_count > 0:
             return get_result(
-                message=f"Partially deleted {success_count} sessions with {len(duplicate_messages)} errors", 
+                message=f"Partially deleted {success_count} sessions with {len(duplicate_messages)} errors",
                 data={"success_count": success_count, "errors": duplicate_messages}
             )
         else:
             return get_error_data_result(message=";".join(duplicate_messages))
-    
+
     return get_result()
 
 

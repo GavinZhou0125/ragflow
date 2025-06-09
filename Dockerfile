@@ -3,7 +3,7 @@ FROM ubuntu:22.04 AS base
 USER root
 SHELL ["/bin/bash", "-c"]
 
-ARG NEED_MIRROR=0
+ARG NEED_MIRROR=1
 ARG LIGHTEN=0
 ENV LIGHTEN=${LIGHTEN}
 
