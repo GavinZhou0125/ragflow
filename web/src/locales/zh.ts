@@ -105,7 +105,8 @@ export default {
       disabled: '禁用',
       action: '动作',
       parsingStatus: '解析状态',
-      parsingStatusTip: '文本解析的时间取决于诸多因素。如果开启了知识图谱、RAPTOR、自动问题提取、自动关键词提取等功能，时间会更长。如果解析进度条长时间不更新，也可以参考这两条 FAQ：https://ragflow.io/docs/dev/faq#why-does-my-document-parsing-stall-at-under-one-percent。',
+      parsingStatusTip:
+        '文本解析的时间取决于诸多因素。如果开启了知识图谱、RAPTOR、自动问题提取、自动关键词提取等功能，时间会更长。如果解析进度条长时间不更新，也可以参考这两条 FAQ：https://ragflow.io/docs/dev/faq#why-does-my-document-parsing-stall-at-under-one-percent。',
       processBeginAt: '开始于',
       processDuration: '持续时间',
       progressMsg: '进度',
@@ -891,6 +892,9 @@ General：实体和关系提取提示来自 GitHub - microsoft/graphrag：基于
         translate: '通用翻译',
         fieldtranslate: '领域翻译',
       },
+      enableCitation: '启用引用',
+      historyWindow: '历史记录保留轮数',
+      serverConfig: '服务器配置',
       baiduDomainOptions: {
         it: '信息技术领域',
         finance: '金融财经领域',
@@ -1193,6 +1197,9 @@ General：实体和关系提取提示来自 GitHub - microsoft/graphrag：基于
       categoryName: '分类名称',
       nextStep: '下一步',
       insertVariableTip: `输入 / 插入变量`,
+      mCP: 'MCP客户端',
+      mCPDescription:
+        '该组件用于处理消息控制协议，可以对消息进行格式化和转换。',
       setting: '设置',
       settings: {
         agentSetting: 'Agent设置',

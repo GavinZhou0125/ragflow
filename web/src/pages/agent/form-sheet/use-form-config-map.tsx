@@ -57,6 +57,7 @@ export function useFormConfigMap() {
           .trim(),
       }),
     },
+
     [Operator.Retrieval]: {
       component: RetrievalForm,
       defaultValues: { query: [] },

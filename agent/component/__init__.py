@@ -50,6 +50,7 @@ from .template import Template, TemplateParam
 from .email import Email, EmailParam
 from .iteration import Iteration, IterationParam
 from .iterationitem import IterationItem, IterationItemParam
+from .mcpclient import MCP, MCPParam
 
 
 def component_class(class_name):
@@ -129,5 +130,7 @@ __all__ = [
     "TemplateParam",
     "Email",
     "EmailParam",
+    "MCP",
+    "MCPParam",
     "component_class"
 ]

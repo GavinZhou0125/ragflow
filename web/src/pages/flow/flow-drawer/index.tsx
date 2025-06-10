@@ -26,6 +26,7 @@ import GoogleScholarForm from '../form/google-scholar-form';
 import InvokeForm from '../form/invoke-form';
 import Jin10Form from '../form/jin10-form';
 import KeywordExtractForm from '../form/keyword-extract-form';
+import MCPForm from '../form/mcp-form';
 import MessageForm from '../form/message-form';
 import PubMedForm from '../form/pubmed-form';
 import QWeatherForm from '../form/qweather-form';
@@ -65,6 +66,7 @@ const FormMap = {
   [Operator.Retrieval]: RetrievalForm,
   [Operator.Generate]: GenerateForm,
   [Operator.Answer]: AnswerForm,
+  [Operator.MCP]: MCPForm,
   [Operator.Categorize]: CategorizeForm,
   [Operator.Message]: MessageForm,
   [Operator.Relevant]: RelevantForm,
@@ -123,22 +125,25 @@ const FormDrawer = ({
   const { handleValuesChange } = useHandleFormValuesChange(node?.id);
 
   useEffect(() => {
-    if (visible) {
+    if (visible && node?.id) {
       if (node?.id !== previousId.current) {
         form.resetFields();
       }
 
-      if (operatorName === Operator.Categorize) {
-        const items = buildCategorizeListFromObject(
-          get(node, 'data.form.category_description', {}),
-        );
-        const formData = node?.data?.form;
-        if (isPlainObject(formData)) {
-          form.setFieldsValue({ ...formData, items });
+      setTimeout(() => {
+        if (operatorName === Operator.Categorize) {
+          const items = buildCategorizeListFromObject(
+            get(node, 'data.form.category_description', {}),
+          );
+          const formData = node?.data?.form;
+          if (isPlainObject(formData)) {
+            form.setFieldsValue({ ...formData, items });
+          }
+        } else {
+          form.setFieldsValue(node?.data?.form);
         }
-      } else {
-        form.setFieldsValue(node?.data?.form);
-      }
+      }, 0);
+
       previousId.current = node?.id;
     }
   }, [visible, form, node?.data?.form, node?.id, node, operatorName]);

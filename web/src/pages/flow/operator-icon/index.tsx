@@ -1,4 +1,3 @@
-import React from 'react';
 import { Operator, operatorIconMap } from '../constant';
 
 import styles from './index.less';
@@ -11,7 +10,9 @@ interface IProps {
 }
 
 const OperatorIcon = ({ name, fontSize, width, color }: IProps) => {
-  const Icon = operatorIconMap[name] || React.Fragment;
+  const Icon =
+    operatorIconMap[name] ||
+    (() => <div className={styles.icon} style={{ fontSize, color, width }} />);
   return (
     <Icon
       className={styles.icon}

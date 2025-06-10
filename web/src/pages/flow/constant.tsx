@@ -44,6 +44,7 @@ export enum Channel {
 }
 
 import {
+  ApiOutlined,
   BranchesOutlined,
   DatabaseOutlined,
   FormOutlined,
@@ -56,7 +57,6 @@ import upperFirst from 'lodash/upperFirst';
 import {
   CirclePower,
   CloudUpload,
-  Database,
   IterationCcw,
   ListOrdered,
   OptionIcon,
@@ -104,6 +104,7 @@ export enum Operator {
   Email = 'Email',
   Iteration = 'Iteration',
   IterationStart = 'IterationItem',
+  MCP = 'MCP',
 }
 
 export const CommonOperatorList = Object.values(Operator).filter(
@@ -147,6 +148,7 @@ export const operatorIconMap = {
   [Operator.Email]: EmailIcon,
   [Operator.Iteration]: IterationCcw,
   [Operator.IterationStart]: CirclePower,
+  [Operator.MCP]: ApiOutlined,
 };
 
 export const operatorMap: Record<
@@ -285,9 +287,20 @@ export const operatorMap: Record<
   [Operator.Email]: { backgroundColor: '#e6f7ff' },
   [Operator.Iteration]: { backgroundColor: '#e6f7ff' },
   [Operator.IterationStart]: { backgroundColor: '#e6f7ff' },
+  [Operator.MCP]: {
+    backgroundColor: '#e6f7ff',
+    color: '#1890ff',
+    width: 70,
+    height: 70,
+    fontSize: 12,
+    iconFontSize: 16,
+  },
 };
 
 export const componentMenuList = [
+  {
+    name: Operator.MCP,
+  },
   {
     name: Operator.Retrieval,
   },
@@ -303,7 +316,6 @@ export const componentMenuList = [
   {
     name: Operator.Message,
   },
-
   {
     name: Operator.RewriteQuestion,
   },
@@ -398,7 +410,6 @@ export const initialRetrievalValues = {
   similarity_threshold: 0.2,
   keywords_similarity_weight: 0.3,
   top_n: 8,
-  use_kg: false,
   ...initialQueryBaseValues,
 };
 
@@ -705,7 +716,7 @@ export const RestrictedUpstreamMap = {
   [Operator.AkShare]: [Operator.Begin],
   [Operator.YahooFinance]: [Operator.Begin],
   [Operator.Jin10]: [Operator.Begin],
-  [Operator.Concentrator]: [Operator.Begin],
+  [Operator.Concentrator]: [Operator.Begin, Operator.Relevant],
   [Operator.TuShare]: [Operator.Begin],
   [Operator.Crawler]: [Operator.Begin],
   [Operator.Note]: [],
@@ -714,6 +725,7 @@ export const RestrictedUpstreamMap = {
   [Operator.Email]: [Operator.Begin],
   [Operator.Iteration]: [Operator.Begin],
   [Operator.IterationStart]: [Operator.Begin],
+  [Operator.MCP]: [Operator.Begin, Operator.Relevant],
 };
 
 export const NodeMap = {
@@ -2950,7 +2962,6 @@ export enum BeginQueryType {
   File = 'file',
   Integer = 'integer',
   Boolean = 'boolean',
-  KnowledgeBases = 'kb',
 }
 
 export const BeginQueryTypeIconMap = {
@@ -2960,7 +2971,6 @@ export const BeginQueryTypeIconMap = {
   [BeginQueryType.File]: CloudUpload,
   [BeginQueryType.Integer]: ListOrdered,
   [BeginQueryType.Boolean]: ToggleLeft,
-  [BeginQueryType.KnowledgeBases]: Database,
 };
 
 export const NoDebugOperatorsList = [

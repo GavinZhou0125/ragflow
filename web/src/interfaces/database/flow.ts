@@ -26,7 +26,7 @@ export interface IOperatorNode {
 }
 
 export declare interface IFlow {
-  avatar?: string;
+  avatar?: null | string;
   canvas_type: null;
   create_date: string;
   create_time: number;
@@ -37,8 +37,6 @@ export declare interface IFlow {
   update_date: string;
   update_time: number;
   user_id: string;
-  permission: string;
-  nickname: string;
 }
 
 export interface IFlowTemplate {
@@ -146,6 +144,8 @@ export type IIterationNode = BaseNode;
 export type IIterationStartNode = BaseNode;
 export type IKeywordNode = BaseNode;
 
+export type IMCPNode = BaseNode;
+
 export type RAGFlowNodeType =
   | IBeginNode
   | IRetrievalNode
@@ -163,7 +163,8 @@ export type RAGFlowNodeType =
   | IEmailNode
   | IIterationNode
   | IIterationStartNode
-  | IKeywordNode;
+  | IKeywordNode
+  | IMCPNode;
 
 export interface IGraph {
   nodes: RAGFlowNodeType[];

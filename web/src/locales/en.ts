@@ -106,7 +106,8 @@ export default {
       disabled: 'Disable',
       action: 'Action',
       parsingStatus: 'Parsing Status',
-      parsingStatusTip: 'Document parsing time varies based on several factors. Enabling features like Knowledge Graph, RAPTOR, Auto Question Extraction, or Auto Keyword Extraction will significantly increase processing time. If the progress bar stalls, please consult these two FAQs: https://ragflow.io/docs/dev/faq#why-does-my-document-parsing-stall-at-under-one-percent.',
+      parsingStatusTip:
+        'Document parsing time varies based on several factors. Enabling features like Knowledge Graph, RAPTOR, Auto Question Extraction, or Auto Keyword Extraction will significantly increase processing time. If the progress bar stalls, please consult these two FAQs: https://ragflow.io/docs/dev/faq#why-does-my-document-parsing-stall-at-under-one-percent.',
       processBeginAt: 'Begin at',
       processDuration: 'Duration',
       progressMsg: 'Progress',
@@ -775,6 +776,9 @@ This auto-tagging feature enhances retrieval by adding another layer of domain-s
       destinationFolder: 'Destination folder',
     },
     flow: {
+      enableCitation: '启用引用',
+      historyWindow: '历史记录保留轮数',
+      serverConfig: '服务器配置',
       cite: 'Cite',
       citeTip: 'citeTip',
       name: 'Name',
@@ -1219,6 +1223,9 @@ This delimiter is used to split the input text into several text pieces echo of 
       }`,
       datatype: 'MINE type of the HTTP request',
       insertVariableTip: `Enter / Insert variables`,
+      mCP: 'Message Control Protocol',
+      mCPDescription:
+        'A component for handling message control protocol, which can format and transform messages.',
       historyversion: 'Version history',
       filename: 'File name',
       version: {
