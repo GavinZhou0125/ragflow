@@ -27,6 +27,7 @@ import { ReactComponent as TemplateIcon } from '@/assets/svg/template.svg';
 import { ReactComponent as TuShareIcon } from '@/assets/svg/tushare.svg';
 import { ReactComponent as WenCaiIcon } from '@/assets/svg/wencai.svg';
 import { ReactComponent as YahooFinanceIcon } from '@/assets/svg/yahoo-finance.svg';
+import { CodeTemplateStrMap, ProgrammingLanguage } from '@/constants/agent';
 
 // 邮件功能
 
@@ -44,7 +45,6 @@ export enum Channel {
 }
 
 import {
-  ApiOutlined,
   BranchesOutlined,
   DatabaseOutlined,
   FormOutlined,
@@ -57,7 +57,10 @@ import upperFirst from 'lodash/upperFirst';
 import {
   CirclePower,
   CloudUpload,
+  CodeXml,
+  Database,
   IterationCcw,
+  Link,
   ListOrdered,
   OptionIcon,
   TextCursorInput,
@@ -104,7 +107,7 @@ export enum Operator {
   Email = 'Email',
   Iteration = 'Iteration',
   IterationStart = 'IterationItem',
-  MCP = 'MCP',
+  Code = 'Code',
 }
 
 export const CommonOperatorList = Object.values(Operator).filter(
@@ -148,7 +151,7 @@ export const operatorIconMap = {
   [Operator.Email]: EmailIcon,
   [Operator.Iteration]: IterationCcw,
   [Operator.IterationStart]: CirclePower,
-  [Operator.MCP]: ApiOutlined,
+  [Operator.Code]: CodeXml,
 };
 
 export const operatorMap: Record<
@@ -287,20 +290,10 @@ export const operatorMap: Record<
   [Operator.Email]: { backgroundColor: '#e6f7ff' },
   [Operator.Iteration]: { backgroundColor: '#e6f7ff' },
   [Operator.IterationStart]: { backgroundColor: '#e6f7ff' },
-  [Operator.MCP]: {
-    backgroundColor: '#e6f7ff',
-    color: '#1890ff',
-    width: 70,
-    height: 70,
-    fontSize: 12,
-    iconFontSize: 16,
-  },
+  [Operator.Code]: { backgroundColor: '#4c5458' },
 };
 
 export const componentMenuList = [
-  {
-    name: Operator.MCP,
-  },
   {
     name: Operator.Retrieval,
   },
@@ -316,6 +309,7 @@ export const componentMenuList = [
   {
     name: Operator.Message,
   },
+
   {
     name: Operator.RewriteQuestion,
   },
@@ -333,6 +327,9 @@ export const componentMenuList = [
   },
   {
     name: Operator.Iteration,
+  },
+  {
+    name: Operator.Code,
   },
   {
     name: Operator.Note,
@@ -410,6 +407,7 @@ export const initialRetrievalValues = {
   similarity_threshold: 0.2,
   keywords_similarity_weight: 0.3,
   top_n: 8,
+  use_kg: false,
   ...initialQueryBaseValues,
 };
 
@@ -644,6 +642,19 @@ export const initialIterationValues = {
 };
 export const initialIterationStartValues = {};
 
+export const initialCodeValues = {
+  lang: 'python',
+  script: CodeTemplateStrMap[ProgrammingLanguage.Python],
+  arguments: [
+    {
+      name: 'arg1',
+    },
+    {
+      name: 'arg2',
+    },
+  ],
+};
+
 export const CategorizeAnchorPointPositions = [
   { top: 1, right: 34 },
   { top: 8, right: 18 },
@@ -716,7 +727,7 @@ export const RestrictedUpstreamMap = {
   [Operator.AkShare]: [Operator.Begin],
   [Operator.YahooFinance]: [Operator.Begin],
   [Operator.Jin10]: [Operator.Begin],
-  [Operator.Concentrator]: [Operator.Begin, Operator.Relevant],
+  [Operator.Concentrator]: [Operator.Begin],
   [Operator.TuShare]: [Operator.Begin],
   [Operator.Crawler]: [Operator.Begin],
   [Operator.Note]: [],
@@ -725,7 +736,7 @@ export const RestrictedUpstreamMap = {
   [Operator.Email]: [Operator.Begin],
   [Operator.Iteration]: [Operator.Begin],
   [Operator.IterationStart]: [Operator.Begin],
-  [Operator.MCP]: [Operator.Begin, Operator.Relevant],
+  [Operator.Code]: [Operator.Begin],
 };
 
 export const NodeMap = {
@@ -765,6 +776,7 @@ export const NodeMap = {
   [Operator.Email]: 'emailNode',
   [Operator.Iteration]: 'group',
   [Operator.IterationStart]: 'iterationStartNode',
+  [Operator.Code]: 'ragNode',
 };
 
 export const LanguageOptions = [
@@ -2960,8 +2972,10 @@ export enum BeginQueryType {
   Paragraph = 'paragraph',
   Options = 'options',
   File = 'file',
+  FileUrls = 'fileUrls',
   Integer = 'integer',
   Boolean = 'boolean',
+  KnowledgeBases = 'kb',
 }
 
 export const BeginQueryTypeIconMap = {
@@ -2969,8 +2983,10 @@ export const BeginQueryTypeIconMap = {
   [BeginQueryType.Paragraph]: WrapText,
   [BeginQueryType.Options]: OptionIcon,
   [BeginQueryType.File]: CloudUpload,
+  [BeginQueryType.FileUrls]: Link,
   [BeginQueryType.Integer]: ListOrdered,
   [BeginQueryType.Boolean]: ToggleLeft,
+  [BeginQueryType.KnowledgeBases]: Database,
 };
 
 export const NoDebugOperatorsList = [

@@ -22,8 +22,9 @@ import uuid
 from copy import deepcopy
 
 from api.db import LLMType, UserTenantRole
-from api.db.db_models import init_database_tables as init_web_db, LLMFactories, LLM, TenantLLM
+from api.db.db_models import DB, init_database_tables as init_web_db, LLMFactories, LLM, TenantLLM
 from api.db.services import UserService
+from api.db.services.api_service import APITokenService
 from api.db.services.canvas_service import CanvasTemplateService
 from api.db.services.document_service import DocumentService
 from api.db.services.knowledgebase_service import KnowledgebaseService
@@ -39,12 +40,28 @@ def encode_to_base64(input_string):
 
 
 def init_superuser():
+    superuser_init = os.environ.get("RAGFLOW_SUPERUSER_INIT") == "1"
+
+    if not superuser_init:
+        return
+
+    superuser_name = os.environ.get("RAGFLOW_SUPERUSER_NAME", "admin")
+
+    if UserService.get_or_none(nickname=superuser_name) is not None:
+        logging.info(f"Superuser {superuser_name} already exists, skip initialization.")
+        return
+
+    superuser_id = os.environ.get("RAGFLOW_SUPERUSER_ID", uuid.uuid1().hex)
+    superuser_password = os.environ.get("RAGFLOW_SUPERUSER_PASSWORD", superuser_name)
+    superuser_email = os.environ.get("RAGFLOW_SUPERUSER_EMAIL", f"{superuser_name}@ragflow.io")
+    superuser_api_token = os.environ.get("RAGFLOW_SUPERUSER_API_TOKEN")
+
     user_info = {
-        "id": uuid.uuid1().hex,
-        "password": encode_to_base64("admin"),
-        "nickname": "admin",
+        "id": superuser_id,
+        "password": encode_to_base64(superuser_password),
+        "nickname": superuser_name,
         "is_superuser": True,
-        "email": "admin@ragflow.io",
+        "email": superuser_email,
         "creator": "system",
         "status": "1",
     }
@@ -55,7 +72,8 @@ def init_superuser():
         "embd_id": settings.EMBEDDING_MDL,
         "asr_id": settings.ASR_MDL,
         "parser_ids": settings.PARSERS,
-        "img2txt_id": settings.IMAGE2TEXT_MDL
+        "img2txt_id": settings.IMAGE2TEXT_MDL,
+        "rerank_id": settings.RERANK_MDL,
     }
     usr_tenant = {
         "tenant_id": user_info["id"],
@@ -70,14 +88,34 @@ def init_superuser():
              "model_type": llm.model_type,
              "api_key": settings.API_KEY, "api_base": settings.LLM_BASE_URL})
 
-    if not UserService.save(**user_info):
-        logging.error("can't init admin.")
+    try:
+        with DB.atomic():
+            if not UserService.save_n(**user_info):
+                logging.error(f"can't init superuser {superuser_name}.")
+                return
+            TenantService.insert_n(**tenant)
+            UserTenantService.insert_n(**usr_tenant)
+            TenantLLMService.insert_many_n(tenant_llm)
+
+            if superuser_api_token is not None:
+                if not superuser_api_token.startswith("ragflow-"):
+                    raise ValueError(f"Initial super user api token {superuser_api_token} does not starts with ragflow-")
+
+                tenant_api_token = {
+                    "tenant_id": user_info["id"],
+                    "token": superuser_api_token,
+                    "beta": superuser_api_token.removeprefix("ragflow-")
+                }
+
+                APITokenService.save_n(**tenant_api_token)
+    except Exception:
+        logging.exception("Failed to initialize super user. Please check your config and restart to initialize again.")
         return
-    TenantService.insert(**tenant)
-    UserTenantService.insert(**usr_tenant)
-    TenantLLMService.insert_many(tenant_llm)
+
     logging.info(
-        "Super user initialized. email: admin@ragflow.io, password: admin. Changing the password after login is strongly recommended.")
+        f"Super user initialized. email: {superuser_email}, password: {superuser_password}, "
+        f"api token {superuser_api_token}. Changing the password after login is strongly recommended."
+    )
 
     chat_mdl = LLMBundle(tenant["id"], LLMType.CHAT, tenant["llm_id"])
     msg = chat_mdl.chat(system="", history=[
@@ -119,7 +157,7 @@ def init_llm_factory():
             except Exception:
                 pass
 
-    LLMFactoriesService.filter_delete([LLMFactories.name == "Local"])
+    LLMFactoriesService.filter_delete([(LLMFactories.name == "Local") | (LLMFactories.name == "novita.ai")])
     LLMService.filter_delete([LLM.fid == "Local"])
     LLMService.filter_delete([LLM.llm_name == "qwen-vl-max"])
     LLMService.filter_delete([LLM.fid == "Moonshot", LLM.llm_name == "flag-embedding"])
@@ -169,8 +207,7 @@ def init_web_data():
     start_time = time.time()
 
     init_llm_factory()
-    # if not UserService.get_all().count():
-    #    init_superuser()
+    init_superuser()
 
     add_graph_templates()
     logging.info("init web data success:{}".format(time.time() - start_time))

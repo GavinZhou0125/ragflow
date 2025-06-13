@@ -76,8 +76,7 @@ class UserService(CommonService):
             return None
 
     @classmethod
-    @DB.connection_context()
-    def save(cls, **kwargs):
+    def save_n(cls, **kwargs):
         if "id" not in kwargs:
             kwargs["id"] = get_uuid()
         if "password" in kwargs:
@@ -90,6 +89,11 @@ class UserService(CommonService):
         kwargs["update_date"] = datetime_format(datetime.now())
         obj = cls.model(**kwargs).save(force_insert=True)
         return obj
+
+    @classmethod
+    @DB.connection_context()
+    def save(cls, **kwargs):
+        return cls.save_n(**kwargs)
 
     @classmethod
     @DB.connection_context()

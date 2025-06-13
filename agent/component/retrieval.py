@@ -15,8 +15,9 @@
 #
 import json
 import logging
-from abc import ABC
 import re
+from abc import ABC
+
 import pandas as pd
 
 from api.db import LLMType
@@ -46,6 +47,7 @@ class RetrievalParam(ComponentParamBase):
         self.empty_response = ""
         self.tavily_api_key = ""
         self.use_kg = False
+        self.use_latest_msg_only = False
 
     def check(self):
         self.check_decimal_float(self.similarity_threshold, "[Retrieval] Similarity threshold")
@@ -57,10 +59,12 @@ class Retrieval(ComponentBase, ABC):
     component_name = "Retrieval"
 
     def _run(self, history, **kwargs):
-        text = self.get_input()
-        text = str(text["content"][0]) if "content" in text else ""
-        # 处理多轮对话
-        query = ' '.join(f'USER:{segment.strip()}' for segment in re.findall(r'USER:(.*?)(?=ASSISTANT:|$)', text, re.DOTALL)) if "USER:" in text else text
+        query = self.get_input(
+            latest_msg_only=self._param.use_latest_msg_only
+        )
+
+        query = str(query["content"][0]) if "content" in query else ""
+        query = re.split(r"(USER:|ASSISTANT:)", query)[-1]
 
         kb_ids: list[str] = self._param.kb_ids or []
 
@@ -96,10 +100,11 @@ class Retrieval(ComponentBase, ABC):
             rerank_mdl = LLMBundle(kbs[0].tenant_id, LLMType.RERANK, self._param.rerank_id)
 
         if kbs:
+            query = re.sub(r"^user[:：\s]*", "", query, flags=re.IGNORECASE)
             kbinfos = settings.retrievaler.retrieval(
                 query,
                 embd_mdl,
-                kbs[0].tenant_id,
+                [kb.tenant_id for kb in kbs],
                 filtered_kb_ids,
                 1,
                 self._param.top_n,
@@ -113,7 +118,7 @@ class Retrieval(ComponentBase, ABC):
             kbinfos = {"chunks": [], "doc_aggs": []}
 
         if self._param.use_kg and kbs:
-            ck = settings.kg_retrievaler.retrieval(query, [kbs[0].tenant_id], filtered_kb_ids, embd_mdl, LLMBundle(kbs[0].tenant_id, LLMType.CHAT))
+            ck = settings.kg_retrievaler.retrieval(query, [kb.tenant_id for kb in kbs], filtered_kb_ids, embd_mdl, LLMBundle(kbs[0].tenant_id, LLMType.CHAT))
             if ck["content_with_weight"]:
                 kbinfos["chunks"].insert(0, ck)
 

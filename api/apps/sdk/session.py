@@ -23,6 +23,7 @@ from api.db.services.conversation_service import ConversationService, iframe_com
 from api.db.services.conversation_service import completion as rag_completion
 from api.db.services.canvas_service import completion as agent_completion, completionOpenAI
 from agent.canvas import Canvas
+from api.apps.file_url_utils import parse_from_file_urls
 from api.db import LLMType, StatusEnum
 from api.db.db_models import APIToken
 from api.db.services.api_service import API4ConversationService
@@ -122,7 +123,6 @@ def create_agent_session(tenant_id, agent_id):
     conv = {"id": get_uuid(), "dialog_id": cvs.id, "user_id": user_id, "message": [{"role": "assistant", "content": canvas.get_prologue()}], "source": "agent", "dsl": cvs.dsl}
     API4ConversationService.save(**conv)
     conv["agent_id"] = conv.pop("dialog_id")
-    conv.pop("dsl")
     return get_result(data=conv)
 
 
@@ -498,12 +498,11 @@ def list_session(tenant_id, chat_id):
         if conv["reference"]:
             messages = conv["messages"]
             message_num = 0
-            chunk_num = 0
-            while message_num < len(messages):
+            while message_num < len(messages) and message_num < len(conv["reference"]):
                 if message_num != 0 and messages[message_num]["role"] != "user":
                     chunk_list = []
-                    if "chunks" in conv["reference"][chunk_num]:
-                        chunks = conv["reference"][chunk_num]["chunks"]
+                    if "chunks" in conv["reference"][message_num]:
+                        chunks = conv["reference"][message_num]["chunks"]
                         for chunk in chunks:
                             new_chunk = {
                                 "id": chunk.get("chunk_id", chunk.get("id")),
@@ -516,7 +515,6 @@ def list_session(tenant_id, chat_id):
                             }
 
                             chunk_list.append(new_chunk)
-                    chunk_num += 1
                     messages[message_num]["reference"] = chunk_list
                 message_num += 1
         del conv["reference"]
@@ -582,7 +580,7 @@ def list_agent_session(tenant_id, agent_id):
 def delete(tenant_id, chat_id):
     if not DialogService.query(id=chat_id, tenant_id=tenant_id, status=StatusEnum.VALID.value):
         return get_error_data_result(message="You don't own the chat")
-
+    
     errors = []
     success_count = 0
     req = request.json
@@ -598,10 +596,10 @@ def delete(tenant_id, chat_id):
             conv_list.append(conv.id)
     else:
         conv_list = ids
-
+    
     unique_conv_ids, duplicate_messages = check_duplicate_ids(conv_list, "session")
     conv_list = unique_conv_ids
-
+    
     for id in conv_list:
         conv = ConversationService.query(id=id, dialog_id=chat_id)
         if not conv:
@@ -609,7 +607,7 @@ def delete(tenant_id, chat_id):
             continue
         ConversationService.delete_by_id(id)
         success_count += 1
-
+    
     if errors:
         if success_count > 0:
             return get_result(
@@ -618,16 +616,16 @@ def delete(tenant_id, chat_id):
             )
         else:
             return get_error_data_result(message="; ".join(errors))
-
+    
     if duplicate_messages:
         if success_count > 0:
             return get_result(
-                message=f"Partially deleted {success_count} sessions with {len(duplicate_messages)} errors",
+                message=f"Partially deleted {success_count} sessions with {len(duplicate_messages)} errors", 
                 data={"success_count": success_count, "errors": duplicate_messages}
             )
         else:
             return get_error_data_result(message=";".join(duplicate_messages))
-
+    
     return get_result()
 
 
@@ -667,7 +665,7 @@ def delete_agent_session(tenant_id, agent_id):
             continue
         API4ConversationService.delete_by_id(session_id)
         success_count += 1
-
+    
     if errors:
         if success_count > 0:
             return get_result(
@@ -676,16 +674,16 @@ def delete_agent_session(tenant_id, agent_id):
             )
         else:
             return get_error_data_result(message="; ".join(errors))
-
+    
     if duplicate_messages:
         if success_count > 0:
             return get_result(
-                message=f"Partially deleted {success_count} sessions with {len(duplicate_messages)} errors",
+                message=f"Partially deleted {success_count} sessions with {len(duplicate_messages)} errors", 
                 data={"success_count": success_count, "errors": duplicate_messages}
             )
         else:
             return get_error_data_result(message=";".join(duplicate_messages))
-
+    
     return get_result()
 
 

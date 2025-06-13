@@ -17,7 +17,6 @@ import logging
 import json
 from copy import deepcopy
 from functools import partial
-
 import pandas as pd
 
 from agent.component import component_class
@@ -167,7 +166,10 @@ class Canvas:
                 return n["data"]["name"]
         return ""
 
-    def run(self, **kwargs):
+    def run(self, running_hint_text = "is running...🕞", **kwargs):
+        if not running_hint_text or not isinstance(running_hint_text, str):
+            running_hint_text = "is running...🕞"
+
         if self.answer:
             cpn_id = self.answer[0]
             self.answer.pop(0)
@@ -177,11 +179,8 @@ class Canvas:
                 ans = ComponentBase.be_output(str(e))
             self.path[-1].append(cpn_id)
             if kwargs.get("stream"):
-                if callable(ans):
-                    for an in ans():
-                        yield an
-                else:
-                    yield ans
+                for an in ans():
+                    yield an
             else:
                 yield ans
             return
@@ -212,7 +211,7 @@ class Canvas:
                             if c not in waiting:
                                 waiting.append(c)
                             continue
-                    yield "*'{}'* is running...🕞".format(self.get_component_name(c))
+                    yield "*'{}'* {}".format(self.get_component_name(c), running_hint_text)
 
                     if cpn.component_name.lower() == "iteration":
                         st_cpn = cpn.get_start()
@@ -238,7 +237,7 @@ class Canvas:
             pid = self.components[cid]["parent_id"]
             o, _ = self.components[cid]["obj"].output(allow_partial=False)
             oo, _ = self.components[pid]["obj"].output(allow_partial=False)
-            self.components[pid]["obj"].set(pd.concat([oo, o], ignore_index=True))
+            self.components[pid]["obj"].set_output(pd.concat([oo, o], ignore_index=True).dropna())
             downstream = [pid]
 
         for m in prepare2run(downstream):
@@ -255,20 +254,20 @@ class Canvas:
             if loop:
                 raise OverflowError(f"Too much loops: {loop}")
 
+            downstream = []
             if cpn["obj"].component_name.lower() in ["switch", "categorize", "relevant"]:
                 switch_out = cpn["obj"].output()[1].iloc[0, 0]
                 assert switch_out in self.components, \
                     "{}'s output: {} not valid.".format(cpn_id, switch_out)
-                for m in prepare2run([switch_out]):
-                    yield {"content": m, "running_status": True}
-                continue
+                downstream = [switch_out]
+            else:
+                downstream = cpn["downstream"]
 
-            downstream = cpn["downstream"]
             if not downstream and cpn.get("parent_id"):
                 pid = cpn["parent_id"]
                 _, o = cpn["obj"].output(allow_partial=False)
                 _, oo = self.components[pid]["obj"].output(allow_partial=False)
-                self.components[pid]["obj"].set_output(pd.concat([oo.dropna(axis=1), o.dropna(axis=1)], ignore_index=True))
+                self.components[pid]["obj"].set_output(pd.concat([oo.dropna(axis=1), o.dropna(axis=1)], ignore_index=True).dropna())
                 downstream = [pid]
 
             for m in prepare2run(downstream):
@@ -288,11 +287,9 @@ class Canvas:
             ans = self.components[cpn_id]["obj"].run(self.history, **kwargs)
             self.path[-1].append(cpn_id)
             if kwargs.get("stream"):
-                if callable(ans):
-                    for an in ans():
-                        yield an
-                else:
-                    yield ans
+                assert isinstance(ans, partial)
+                for an in ans():
+                    yield an
             else:
                 yield ans
 
@@ -307,6 +304,8 @@ class Canvas:
 
     def get_history(self, window_size):
         convs = []
+        if window_size <= 0:
+            return convs
         for role, obj in self.history[window_size * -1:]:
             if isinstance(obj, list) and obj and all([isinstance(o, dict) for o in obj]):
                 convs.append({"role": role, "content": '\n'.join([str(s.get("content", "")) for s in obj])})
@@ -368,3 +367,6 @@ class Canvas:
 
     def get_component_input_elements(self, cpnnm):
         return self.components[cpnnm]["obj"].get_input_elements()
+    
+    def set_component_infor(self, cpn_id, infor):
+        self.components[cpn_id]["obj"].set_infor(infor)

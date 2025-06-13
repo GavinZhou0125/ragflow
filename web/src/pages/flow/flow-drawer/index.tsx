@@ -14,6 +14,7 @@ import BaiduForm from '../form/baidu-form';
 import BeginForm from '../form/begin-form';
 import BingForm from '../form/bing-form';
 import CategorizeForm from '../form/categorize-form';
+import CodeForm from '../form/code-form';
 import CrawlerForm from '../form/crawler-form';
 import DeepLForm from '../form/deepl-form';
 import DuckDuckGoForm from '../form/duckduckgo-form';
@@ -26,7 +27,6 @@ import GoogleScholarForm from '../form/google-scholar-form';
 import InvokeForm from '../form/invoke-form';
 import Jin10Form from '../form/jin10-form';
 import KeywordExtractForm from '../form/keyword-extract-form';
-import MCPForm from '../form/mcp-form';
 import MessageForm from '../form/message-form';
 import PubMedForm from '../form/pubmed-form';
 import QWeatherForm from '../form/qweather-form';
@@ -66,7 +66,6 @@ const FormMap = {
   [Operator.Retrieval]: RetrievalForm,
   [Operator.Generate]: GenerateForm,
   [Operator.Answer]: AnswerForm,
-  [Operator.MCP]: MCPForm,
   [Operator.Categorize]: CategorizeForm,
   [Operator.Message]: MessageForm,
   [Operator.Relevant]: RelevantForm,
@@ -99,6 +98,7 @@ const FormMap = {
   [Operator.Email]: EmailForm,
   [Operator.Iteration]: IterationForm,
   [Operator.IterationStart]: () => <></>,
+  [Operator.Code]: CodeForm,
 };
 
 const EmptyContent = () => <div></div>;
@@ -125,25 +125,22 @@ const FormDrawer = ({
   const { handleValuesChange } = useHandleFormValuesChange(node?.id);
 
   useEffect(() => {
-    if (visible && node?.id) {
+    if (visible) {
       if (node?.id !== previousId.current) {
         form.resetFields();
       }
 
-      setTimeout(() => {
-        if (operatorName === Operator.Categorize) {
-          const items = buildCategorizeListFromObject(
-            get(node, 'data.form.category_description', {}),
-          );
-          const formData = node?.data?.form;
-          if (isPlainObject(formData)) {
-            form.setFieldsValue({ ...formData, items });
-          }
-        } else {
-          form.setFieldsValue(node?.data?.form);
+      if (operatorName === Operator.Categorize) {
+        const items = buildCategorizeListFromObject(
+          get(node, 'data.form.category_description', {}),
+        );
+        const formData = node?.data?.form;
+        if (isPlainObject(formData)) {
+          form.setFieldsValue({ ...formData, items });
         }
-      }, 0);
-
+      } else {
+        form.setFieldsValue(node?.data?.form);
+      }
       previousId.current = node?.id;
     }
   }, [visible, form, node?.data?.form, node?.id, node, operatorName]);

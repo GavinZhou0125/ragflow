@@ -24,8 +24,8 @@ import { BeginQueryType } from '../constant';
 import { BeginQuery } from '../interface';
 import { PopoverForm } from './popover-form';
 
-import styles from './index.less';
 import KnowledgeBaseItem from '@/components/knowledge-base-item';
+import styles from './index.less';
 
 interface IProps {
   parameters: BeginQuery[];
@@ -155,6 +155,54 @@ const DebugContent = ({
             <Form.Item name={idx} noStyle {...pick(props, ['rules'])} />
           </React.Fragment>
         ),
+        [BeginQueryType.FileUrls]: (
+          <React.Fragment key={idx}>
+            <Form.Item label={q.name ?? q.key} required={!q.optional}>
+              <div className="relative">
+                <Form.Item
+                  {...props}
+                  valuePropName="urlFileList"
+                  getValueFromEvent={normFile}
+                  noStyle
+                >
+                  <Upload
+                    name="urlFile"
+                    action={api.parse}
+                    multiple
+                    headers={{ [Authorization]: getAuthorization() }}
+                    onChange={onChange(q.optional)}
+                  >
+                    <Button icon={<UploadOutlined />}>
+                      {t('common.upload')}
+                    </Button>
+                  </Upload>
+                </Form.Item>
+                <Form.Item
+                  {...pick(props, ['key', 'label', 'rules'])}
+                  required={!q.optional}
+                  className={urlList.length > 0 ? 'mb-1' : ''}
+                  noStyle
+                >
+                  <PopoverForm
+                    visible={visible}
+                    switchVisible={switchVisible}
+                    noValidateUrl={true}
+                    noOutputUrl={true}
+                  >
+                    <Button
+                      onClick={handleShowPopover(idx)}
+                      className="absolute left-1/2 top-0"
+                      icon={<Link className="size-3" />}
+                    >
+                      {t('flow.pasteFileLink')}
+                    </Button>
+                  </PopoverForm>
+                </Form.Item>
+              </div>
+            </Form.Item>
+            <Form.Item name={idx} noStyle {...pick(props, ['rules'])} />
+          </React.Fragment>
+        ),
         [BeginQueryType.Integer]: (
           <Form.Item {...props}>
             <InputNumber></InputNumber>
@@ -171,7 +219,7 @@ const DebugContent = ({
             label={q.name || q.key}
             required={!q.optional}
           ></KnowledgeBaseItem>
-        )
+        ),
       };
 
       return (
@@ -191,7 +239,7 @@ const DebugContent = ({
         nextValue = ``;
 
         if (item.type === 'kb') {
-          nextValue = value.join(',')
+          nextValue = value.join(',');
         } else {
           value.forEach((x) => {
             nextValue +=

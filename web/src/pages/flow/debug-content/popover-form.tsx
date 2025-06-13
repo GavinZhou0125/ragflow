@@ -12,7 +12,11 @@ export const PopoverForm = ({
   children,
   visible,
   switchVisible,
-}: PropsWithChildren<IModalProps<any>>) => {
+  noValidateUrl,
+  noOutputUrl,
+}: PropsWithChildren<
+  IModalProps<any> & { noValidateUrl?: boolean; noOutputUrl?: boolean }
+>) => {
   const [form] = Form.useForm();
   const { parseDocument, loading } = useParseDocument();
   const { t } = useTranslation();
@@ -31,6 +35,10 @@ export const PopoverForm = ({
       if (ret?.data?.code === 0) {
         form.setFieldValue('result', ret?.data?.data);
         form.submit();
+
+        if (noOutputUrl) {
+          form.setFieldValue('url', '');
+        }
       }
     }
   };
@@ -39,7 +47,11 @@ export const PopoverForm = ({
     <Form form={form} name="urlForm">
       <Form.Item
         name="url"
-        rules={[{ required: true, type: 'url' }]}
+        rules={
+          noValidateUrl
+            ? [{ required: true }]
+            : [{ required: true, type: 'url' }]
+        }
         className="m-0"
       >
         <Input

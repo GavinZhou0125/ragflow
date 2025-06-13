@@ -1,3 +1,4 @@
+import { useFetchMultipleMcpServers } from '@/hooks/mcp-server-setting-hooks';
 import get from 'lodash/get';
 import { useCallback, useMemo } from 'react';
 import { v4 as uuid } from 'uuid';
@@ -67,4 +68,23 @@ export const useHandleOperateParameters = (nodeId: string) => {
     handleSave,
     dataSource,
   };
+};
+
+export const useBuildMcpServerVariableOptions = (nodeId: string) => {
+  const { getNode } = useGraphStore((state) => state);
+  const node = getNode(nodeId);
+  const selectedMcpServerIdList = node?.data.form.llm_enabled_mcp_servers;
+  const { data: selectedMcpServers } = useFetchMultipleMcpServers(
+    selectedMcpServerIdList || [],
+  );
+
+  return selectedMcpServers.map((s) => ({
+    label: s.name,
+    title: s.name,
+    options: (s.variables || []).map((v) => ({
+      label: v.name,
+      fullLabel: `${s.name}: ${v.name}`,
+      value: `${v.key}@${s.id}`,
+    })),
+  }));
 };

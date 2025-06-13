@@ -38,7 +38,6 @@ import { InvokeNode } from './node/invoke-node';
 import { IterationNode, IterationStartNode } from './node/iteration-node';
 import { KeywordNode } from './node/keyword-node';
 import { LogicNode } from './node/logic-node';
-import { MCPNode } from './node/mcp-node';
 import { MessageNode } from './node/message-node';
 import NoteNode from './node/note-node';
 import { RelevantNode } from './node/relevant-node';
@@ -65,7 +64,6 @@ export const nodeTypes: NodeTypes = {
   emailNode: EmailNode,
   group: IterationNode,
   iterationStartNode: IterationStartNode,
-  mcpNode: MCPNode,
 };
 
 export const edgeTypes = {
