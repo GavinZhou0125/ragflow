@@ -93,12 +93,14 @@ class Generate(ComponentBase):
 
     def get_dependent_components(self):
         inputs = self.get_input_elements()
-        cpnts = set([i["key"] for i in inputs[1:] if i["key"].lower().find("answer") < 0 and i["key"].lower().find("begin") < 0])
+        cpnts = set([i["key"] for i in inputs[1:] if
+                     i["key"].lower().find("answer") < 0 and i["key"].lower().find("begin") < 0])
 
         mcp_server_inputs = [
             m["component_id"]
             for m in self._param.mcp_server_variable_map
-            if m.get("component_id") is not None and m["component_id"].lower().find("answer") < 0 and m["component_id"].lower().find("begin") < 0
+            if m.get("component_id") is not None and m["component_id"].lower().find("answer") < 0 and m[
+                "component_id"].lower().find("begin") < 0
         ]
 
         for cpn_id in mcp_server_inputs:
@@ -191,11 +193,11 @@ class Generate(ComponentBase):
         return self.__get_input_elements_from_prompt(self._param.prompt)
 
     def __recursive_resolve_prompt(
-        self,
-        prompt: str,
-        resolved_args: dict[str, Any],
-        resolved_retrieval_res: pd.DataFrame,
-        current_depth: int = 0
+            self,
+            prompt: str,
+            resolved_args: dict[str, Any],
+            resolved_retrieval_res: pd.DataFrame,
+            current_depth: int = 0
     ) -> str:
         if current_depth > self._param.prompt_recursive_depth:
             return prompt
@@ -237,7 +239,8 @@ class Generate(ComponentBase):
             else:
                 if cpn.component_name.lower() == "retrieval":
                     resolved_retrieval_res = pd.concat([resolved_retrieval_res, pd.DataFrame(out)], ignore_index=True)
-                resolved_args[para["key"]] = "  - " + "\n - ".join([o if isinstance(o, str) else str(o) for o in out["content"]])
+                resolved_args[para["key"]] = "  - " + "\n - ".join(
+                    [o if isinstance(o, str) else str(o) for o in out["content"]])
             self._param.inputs.append({"component_id": para["key"], "content": resolved_args[para["key"]]})
 
         for n, v in resolved_args.items():
@@ -246,7 +249,8 @@ class Generate(ComponentBase):
         if not self._param.inputs and prompt.find("{input}") >= 0:
             resolved_retrieval_res = self.get_input()
             input = ("  - " + "\n  - ".join(
-                [c for c in resolved_retrieval_res["content"] if isinstance(c, str)])) if "content" in resolved_retrieval_res else ""
+                [c for c in resolved_retrieval_res["content"] if
+                 isinstance(c, str)])) if "content" in resolved_retrieval_res else ""
             prompt = re.sub(r"\{input\}", re.escape(input), prompt)
         elif len(resolved_input_elements) == 0:
             return prompt
@@ -274,14 +278,16 @@ class Generate(ComponentBase):
                 found, mcp_server = MCPServerService.get_by_id(mcp_server_id)
 
                 if not found or mcp_server is None:
-                    logging.warning(f"MCP server {mcp_server_id} in component {self.component_name} does not exist, it will be skipped!")
+                    logging.warning(
+                        f"MCP server {mcp_server_id} in component {self.component_name} does not exist, it will be skipped!")
                     continue
 
                 mcp_server_variables = {}
 
                 for server_var in mcp_server.variables:
                     target_key = f"{server_var['key']}@{mcp_server_id}"
-                    input_server_var = next(filter(lambda v: v["target"] == target_key, self._param.mcp_server_variable_map), None)
+                    input_server_var = next(
+                        filter(lambda v: v["target"] == target_key, self._param.mcp_server_variable_map), None)
 
                     if input_server_var is None:
                         continue
@@ -294,7 +300,8 @@ class Generate(ComponentBase):
                     elif input_server_var["type"] == "input":
                         target_value = input_server_var["value"]
                     else:
-                        logging.warning(f"MCP server variable {target_key} has invalid type {input_server_var['type']}, will ignore this variable!")
+                        logging.warning(
+                            f"MCP server variable {target_key} has invalid type {input_server_var['type']}, will ignore this variable!")
                         target_value = ""
 
                     mcp_server_variables[server_var["key"]] = target_value
@@ -305,7 +312,8 @@ class Generate(ComponentBase):
                 if len(tools) > 0:
                     chat_mdl.bind_tools(toolcall_session, tools)
                 else:
-                    logging.warning(f"MCP server {mcp_server_id} in component {self.component_name} does not have any tools, it will take no effect!")
+                    logging.warning(
+                        f"MCP server {mcp_server_id} in component {self.component_name} does not have any tools, it will take no effect!")
                     toolcall_session.close_sync()
 
                 mcp_toolcall_sessions.append(toolcall_session)
@@ -333,7 +341,8 @@ class Generate(ComponentBase):
             close_multiple_mcp_toolcall_sessions(mcp_toolcall_sessions)
 
         ans = re.sub(r"^.*</think>", "", ans, flags=re.DOTALL)
-        self._canvas.set_component_infor(self._id, {"prompt":msg[0]["content"],"messages":  msg[1:],"conf":  self._param.gen_conf()})
+        self._canvas.set_component_infor(self._id, {"prompt": msg[0]["content"], "messages": msg[1:],
+                                                    "conf": self._param.gen_conf()})
         if self._param.cite and "chunks" in retrieval_res.columns:
             res = self.set_cite(retrieval_res, ans)
             return pd.DataFrame([res])
@@ -370,7 +379,8 @@ class Generate(ComponentBase):
         if self._param.cite and "chunks" in retrieval_res.columns:
             res = self.set_cite(retrieval_res, answer)
             yield res
-        self._canvas.set_component_infor(self._id, {"prompt":msg[0]["content"],"messages":  msg[1:],"conf":  self._param.gen_conf()})
+        self._canvas.set_component_infor(self._id, {"prompt": msg[0]["content"], "messages": msg[1:],
+                                                    "conf": self._param.gen_conf()})
         self.set_output(Generate.be_output(res))
 
     def debug(self, **kwargs):

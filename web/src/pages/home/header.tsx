@@ -1,19 +1,7 @@
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Button } from '@/components/ui/button';
-import { Container } from '@/components/ui/container';
 import { Segmented, SegmentedValue } from '@/components/ui/segmented';
 import { useTranslate } from '@/hooks/common-hooks';
 import { useNavigateWithFromState } from '@/hooks/route-hook';
-import {
-  ChevronDown,
-  Cpu,
-  Github,
-  Library,
-  MessageSquareText,
-  Search,
-  Star,
-  Zap,
-} from 'lucide-react';
+import { Cpu, Library, MessageSquareText, Search } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
 import { useLocation } from 'umi';
 
@@ -72,11 +60,11 @@ export function HomeHeader() {
           className="w-[100] h-[100] mr-[12]"
           onClick={handleLogoClick}
         />
-        <Button variant="secondary">
-          <Github />
-          21.5k stars
-          <Star />
-        </Button>
+        {/*<Button variant="secondary">*/}
+        {/*  <Github />*/}
+        {/*  21.5k stars*/}
+        {/*  <Star />*/}
+        {/*</Button>*/}
       </div>
       <div>
         <Segmented
@@ -86,28 +74,28 @@ export function HomeHeader() {
           className="bg-colors-background-inverse-standard text-backgroundInverseStandard-foreground"
         ></Segmented>
       </div>
-      <div className="flex items-center gap-4">
-        <Container>
-          V 0.13.0
-          <Button variant="secondary" className="size-8">
-            <ChevronDown />
-          </Button>
-        </Container>
-        <Container className="px-3 py-2">
-          <Avatar className="w-[30px] h-[30px]">
-            <AvatarImage src="https://github.com/shadcn.png" />
-            <AvatarFallback>CN</AvatarFallback>
-          </Avatar>
-          yifanwu92@gmail.com
-          <Button
-            variant="destructive"
-            className="py-[2px] px-[8px] h-[23px] rounded-[4px]"
-          >
-            <Zap />
-            Pro
-          </Button>
-        </Container>
-      </div>
+      {/*<div className="flex items-center gap-4">*/}
+      {/*  <Container>*/}
+      {/*    V 0.13.0*/}
+      {/*    <Button variant="secondary" className="size-8">*/}
+      {/*      <ChevronDown />*/}
+      {/*    </Button>*/}
+      {/*  </Container>*/}
+      {/*  <Container className="px-3 py-2">*/}
+      {/*    <Avatar className="w-[30px] h-[30px]">*/}
+      {/*      <AvatarImage src="https://github.com/shadcn.png" />*/}
+      {/*      <AvatarFallback>CN</AvatarFallback>*/}
+      {/*    </Avatar>*/}
+      {/*    yifanwu92@gmail.com*/}
+      {/*    <Button*/}
+      {/*      variant="destructive"*/}
+      {/*      className="py-[2px] px-[8px] h-[23px] rounded-[4px]"*/}
+      {/*    >*/}
+      {/*      <Zap />*/}
+      {/*      Pro*/}
+      {/*    </Button>*/}
+      {/*  </Container>*/}
+      {/*</div>*/}
     </section>
   );
 }

@@ -38,7 +38,6 @@ from zhipuai import ZhipuAI
 
 from rag.nlp import is_chinese, is_english
 from rag.utils import num_tokens_from_string
-
 # Error message constants
 ERROR_PREFIX = "**ERROR**"
 ERROR_RATE_LIMIT = "RATE_LIMIT_EXCEEDED"
