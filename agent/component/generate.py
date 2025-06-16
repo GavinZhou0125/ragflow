@@ -191,7 +191,7 @@ class Generate(ComponentBase):
         return self.__get_input_elements_from_prompt(self._param.prompt)
 
     def __recursive_resolve_prompt(
-        self, 
+        self,
         prompt: str,
         resolved_args: dict[str, Any],
         resolved_retrieval_res: pd.DataFrame,
@@ -218,7 +218,7 @@ class Generate(ComponentBase):
                         break
                 else:
                     assert False, f"Can't find parameter '{key}' for {cpn_id}"
-                
+
                 continue
 
             component_id = para["key"]
@@ -307,7 +307,7 @@ class Generate(ComponentBase):
                 else:
                     logging.warning(f"MCP server {mcp_server_id} in component {self.component_name} does not have any tools, it will take no effect!")
                     toolcall_session.close_sync()
-                
+
                 mcp_toolcall_sessions.append(toolcall_session)
 
         downstreams = self._canvas.get_component(self._id)["downstream"]

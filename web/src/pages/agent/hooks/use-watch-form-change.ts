@@ -2,7 +2,7 @@ import { CodeTemplateStrMap, ProgrammingLanguage } from '@/constants/agent';
 import { settledModelVariableMap } from '@/constants/knowledge';
 import { omit } from 'lodash';
 import { useCallback, useEffect } from 'react';
-import { UseFormReturn } from 'react-hook-form';
+import { UseFormReturn, useWatch } from 'react-hook-form';
 import { Operator } from '../constant';
 import useGraphStore from '../store';
 import { buildCategorizeObjectFromList, convertToStringArray } from '../utils';
@@ -36,6 +36,52 @@ export const useHandleFormValuesChange = (
     },
     [updateNodeForm, id],
   );
+
+  let values = useWatch({ control: form?.control });
+
+  // console.log('🚀 ~ x:', values);
+
+  useEffect(() => {
+    // Manually triggered form updates are synchronized to the canvas
+    if (id && form?.formState.isDirty) {
+      values = form?.getValues();
+      let nextValues: any = values;
+      // run(id, nextValues);
+
+      const categoryDescriptionRegex = /items\.\d+\.name/g;
+
+      if (operatorName === Operator.Categorize) {
+        console.log('🚀 ~ useEffect ~ values:', values);
+        const categoryDescription = Array.isArray(values.items)
+          ? buildCategorizeObjectFromList(values.items)
+          : {};
+        if (categoryDescription) {
+          nextValues = {
+            ...omit(values, 'items'),
+            category_description: categoryDescription,
+          };
+        }
+      } else if (operatorName === Operator.Message) {
+        nextValues = {
+          ...values,
+          content: convertToStringArray(values.content),
+        };
+      }
+
+      updateNodeForm(id, nextValues);
+    }
+  }, [form?.formState.isDirty, id, operatorName, updateNodeForm, values]);
+
+  // useEffect(() => {
+  //   form?.subscribe({
+  //     formState: { values: true },
+  //     callback: ({ values }) => {
+  //       // console.info('subscribe', values);
+  //     },
+  //   });
+  // }, [form]);
+
+  return { handleValuesChange };
 
   useEffect(() => {
     const subscription = form?.watch((value, { name, type, values }) => {
@@ -93,6 +139,13 @@ export const useHandleFormValuesChange = (
 
         // Manually triggered form updates are synchronized to the canvas
         if (form.formState.isDirty) {
+          console.log(
+            '🚀 ~ useEffect ~ value:',
+            name,
+            type,
+            values,
+            operatorName,
+          );
           // run(id, nextValues);
           updateNodeForm(id, nextValues);
         }
@@ -103,3 +156,18 @@ export const useHandleFormValuesChange = (
 
   return { handleValuesChange };
 };
+
+export function useWatchFormChange(id?: string, form?: UseFormReturn) {
+  let values = useWatch({ control: form?.control });
+  const updateNodeForm = useGraphStore((state) => state.updateNodeForm);
+
+  useEffect(() => {
+    // Manually triggered form updates are synchronized to the canvas
+    if (id && form?.formState.isDirty) {
+      values = form?.getValues();
+      let nextValues: any = values;
+
+      updateNodeForm(id, nextValues);
+    }
+  }, [form?.formState.isDirty, id, updateNodeForm, values]);
+}

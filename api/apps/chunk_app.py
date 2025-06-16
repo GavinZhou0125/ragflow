@@ -99,6 +99,7 @@ def batch_upload():
 
 
 
+
 @manager.route('/list', methods=['POST'])  # noqa: F821
 @login_required
 @validate_request("doc_id")

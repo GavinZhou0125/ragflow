@@ -124,7 +124,8 @@ class CommonService:
             return None
 
     @classmethod
-    def save_n(cls, **kwargs):
+    @DB.connection_context()
+    def save(cls, **kwargs):
         """Save a new record to database.
 
         This method creates a new record in the database with the provided field values,
@@ -141,11 +142,7 @@ class CommonService:
 
     @classmethod
     @DB.connection_context()
-    def save(cls, **kwargs):
-        return cls.save_n(**kwargs)
-
-    @classmethod
-    def insert_n(cls, **kwargs):
+    def insert(cls, **kwargs):
         """Insert a new record with automatic ID and timestamps.
 
         This method creates a new record with automatically generated ID and timestamp fields.
@@ -168,11 +165,7 @@ class CommonService:
 
     @classmethod
     @DB.connection_context()
-    def insert(cls, **kwargs):
-        return cls.insert_n(**kwargs)
-
-    @classmethod
-    def insert_many_n(cls, data_list, batch_size=100):
+    def insert_many(cls, data_list, batch_size=100):
         """Insert multiple records in batches.
 
         This method efficiently inserts multiple records into the database using batch processing.
@@ -188,11 +181,6 @@ class CommonService:
                 d["create_date"] = datetime_format(datetime.now())
             for i in range(0, len(data_list), batch_size):
                 cls.model.insert_many(data_list[i : i + batch_size]).execute()
-
-    @classmethod
-    @DB.connection_context()
-    def insert_many(cls, data_list, batch_size=100):
-        return cls.insert_many_n(data_list, batch_size)
 
     @classmethod
     @DB.connection_context()

@@ -25,31 +25,28 @@ export const useEditQueryRecord = ({ form, node }: INextOperatorForm) => {
   const { setRecord, currentRecord } = useSetSelectedRecord<BeginQuery>();
   const { visible, hideModal, showModal } = useSetModalState();
   const [index, setIndex] = useState(-1);
-  const { update } = useUpdateQueryToNodeForm({ form, node });
 
   const otherThanCurrentQuery = useMemo(() => {
-    const query: BeginQuery[] = form?.getValues('query') || [];
-    return query.filter((item, idx) => idx !== index);
+    const inputs: BeginQuery[] = form?.getValues('inputs') || [];
+    return inputs.filter((item, idx) => idx !== index);
   }, [form, index]);
 
   const handleEditRecord = useCallback(
     (record: BeginQuery) => {
-      const query: BeginQuery[] = form?.getValues('query') || [];
-      console.log('🚀 ~ useEditQueryRecord ~ query:', query);
+      const inputs: BeginQuery[] = form?.getValues('inputs') || [];
+      console.log('🚀 ~ useEditQueryRecord ~ inputs:', inputs);
 
       const nextQuery: BeginQuery[] =
-        index > -1 ? query.toSpliced(index, 1, record) : [...query, record];
+        index > -1 ? inputs.toSpliced(index, 1, record) : [...inputs, record];
 
-      form.setValue('query', nextQuery, {
+      form.setValue('inputs', nextQuery, {
         shouldDirty: true,
         shouldTouch: true,
       });
 
-      update(nextQuery);
-
       hideModal();
     },
-    [form, hideModal, index, update],
+    [form, hideModal, index],
   );
 
   const handleShowModal = useCallback(
@@ -63,16 +60,14 @@ export const useEditQueryRecord = ({ form, node }: INextOperatorForm) => {
 
   const handleDeleteRecord = useCallback(
     (idx: number) => {
-      const query = form?.getValues('query') || [];
-      const nextQuery = query.filter(
+      const inputs = form?.getValues('inputs') || [];
+      const nextQuery = inputs.filter(
         (item: BeginQuery, index: number) => index !== idx,
       );
 
-      form.setValue('query', nextQuery, { shouldDirty: true });
-
-      update(nextQuery);
+      form.setValue('inputs', nextQuery, { shouldDirty: true });
     },
-    [form, update],
+    [form],
   );
 
   return {

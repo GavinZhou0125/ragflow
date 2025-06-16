@@ -22,7 +22,6 @@ import flask
 from flask import request
 from flask_login import current_user, login_required
 
-from api.apps.file_url_utils import is_stored_url, parse_from_file_urls
 from api import settings
 from api.constants import IMG_BASE64_PREFIX
 from api.db import VALID_FILE_TYPES, VALID_TASK_STATUS, FileSource, FileType, ParserType, TaskStatus
