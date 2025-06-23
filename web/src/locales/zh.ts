@@ -842,8 +842,6 @@ General：实体和关系提取提示来自 GitHub - microsoft/graphrag：基于
       promptText: `请总结以下段落。注意数字，不要胡编乱造。段落如下：
 {input}
 以上就是你需要总结的内容。`,
-      promptRecursiveDepth: `工具链最大深度`,
-      promptRecursiveDepthTip: `工具链最大深度是指工具链中工具的最大调用次数。如果工具链中的工具被调用超过最大深度，工具链将停止调用工具并返回错误。`,
       createGraph: '创建 Agent',
       createFromTemplates: '从模板创建',
       retrieval: '知识检索',

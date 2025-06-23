@@ -465,7 +465,7 @@ def agent_completions(tenant_id, agent_id):
         for answer in agent_completion(tenant_id, agent_id, **req):
             #resp = Response(answer, mimetype="application/json")
             #resp.headers.add_header("Content-Type", "application/json")
-            return get_result(data=answer)
+            return answer
     except Exception as e:
         return get_error_data_result(str(e))
 
