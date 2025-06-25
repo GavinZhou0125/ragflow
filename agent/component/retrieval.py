@@ -59,9 +59,7 @@ class Retrieval(ComponentBase, ABC):
     component_name = "Retrieval"
 
     def _run(self, history, **kwargs):
-        query = self.get_input(
-            latest_msg_only=self._param.use_latest_msg_only
-        )
+        query = self.get_input()
 
         query = str(query["content"][0]) if "content" in query else ""
         query = re.split(r"(USER:|ASSISTANT:)", query)[-1]

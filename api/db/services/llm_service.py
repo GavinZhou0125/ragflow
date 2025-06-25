@@ -357,9 +357,30 @@ class LLMBundle:
 
         return txt
 
-    def chat_streamly(self, system, history, gen_conf):
+    def chat_trace(self, system, history, gen_conf, **kwargs):
+        current_id = kwargs.get("message_id")
         if self.langfuse:
-            generation = self.trace.generation(name="chat_streamly", model=self.llm_name, input={"system": system, "history": history})
+            generation = self.trace.generation(name="chat", model=self.llm_name, input={"system": system, "history": history}, metadata={"message_id": current_id})
+
+        chat = self.mdl.chat
+        if self.is_tools and self.mdl.is_tools:
+            chat = self.mdl.chat_with_tools
+
+        txt, used_tokens = chat(system, history, gen_conf)
+        txt = self._remove_reasoning_content(txt)
+
+        if isinstance(txt, int) and not TenantLLMService.increase_usage(self.tenant_id, self.llm_type, used_tokens, self.llm_name):
+            logging.error("LLMBundle.chat can't update token usage for {}/CHAT llm_name: {}, used_tokens: {}".format(self.tenant_id, self.llm_name, used_tokens))
+
+        if self.langfuse:
+            generation.end(output={"output": txt}, usage_details={"total_tokens": used_tokens})
+
+        return {"ans":txt, "trace_id": self.trace.id}
+
+    def chat_streamly(self, system, history, gen_conf, **kwargs):
+        current_id = kwargs.get("message_id")
+        if self.langfuse:
+            generation = self.trace.generation(name="chat_streamly", model=self.llm_name, input={"system": system, "history": history} , metadata={"message_id": current_id})
 
         ans = ""
         chat_streamly = self.mdl.chat_streamly
@@ -378,7 +399,7 @@ class LLMBundle:
                 ans = ans.rstrip("</think>")
 
             ans += txt
-            yield ans
+            yield {"ans":ans, "trace_id": self.trace.id}
         if total_tokens > 0:
             if not TenantLLMService.increase_usage(self.tenant_id, self.llm_type, txt, self.llm_name):
                 logging.error("LLMBundle.chat_streamly can't update token usage for {}/CHAT llm_name: {}, content: {}".format(self.tenant_id, self.llm_name, txt))

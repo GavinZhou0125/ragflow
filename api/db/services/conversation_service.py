@@ -49,7 +49,7 @@ class ConversationService(CommonService):
         return list(sessions.dicts())
 
 
-def structure_answer(conv, ans, message_id, session_id):
+def structure_answer(conv, ans, message_id, session_id,trace_id=""):
     reference = ans["reference"]
     if not isinstance(reference, dict):
         reference = {}
@@ -60,7 +60,7 @@ def structure_answer(conv, ans, message_id, session_id):
     reference["chunks"] = chunk_list
     ans["id"] = message_id
     ans["session_id"] = session_id
-
+    ans["trace_id"] = trace_id
     if not conv:
         return ans
 

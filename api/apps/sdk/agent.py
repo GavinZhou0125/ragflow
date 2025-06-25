@@ -17,7 +17,11 @@
 import json
 import time
 from typing import Any, cast
+
+from langfuse import Langfuse
+
 from api.db.services.canvas_service import UserCanvasService
+from api.db.services.langfuse_service import TenantLangfuseService
 from api.db.services.user_canvas_version import UserCanvasVersionService
 from api.settings import RetCode
 from api.utils import get_uuid
@@ -126,3 +130,51 @@ def delete_agent(tenant_id: str, agent_id: str):
 
     UserCanvasService.delete_by_id(agent_id)
     return get_json_result(data=True)
+
+
+@manager.route("/agents/annotate", methods=["POST"])  # noqa: F821
+@token_required
+def thumbs_up(tenant_id: str):
+    req = request.json
+    trace_id = req.get("trace_id")
+    message_id = req.get("message_id")
+    thumbs:bool = req.get("thumbs", False)
+    langfuse_keys = TenantLangfuseService.filter_by_tenant(tenant_id=tenant_id)
+    if not langfuse_keys:
+        return get_json_result(message="Tenant config not found", code=404)
+
+    langfuse = Langfuse(
+        public_key=langfuse_keys.public_key,
+        secret_key=langfuse_keys.secret_key,
+        host=langfuse_keys.host
+    )
+
+    if not langfuse.auth_check():
+        return get_json_result(message="Langfuse auth failed", code=403)
+
+    try:
+        trace = langfuse.fetch_trace(id=trace_id)
+        observations = trace.data.observations
+
+        # 查找 metadata 中带有 message_id 的 Observation
+        matched_obs = next(
+            (obs for obs in observations if obs.metadata.get("message_id") == message_id),
+            None
+        )
+
+        if not matched_obs:
+            return get_json_result(message="Observation not found", code=404)
+
+        # 添加注解
+        langfuse.score(
+            trace_id=trace_id,
+            observation_id=matched_obs.id,
+            name="thumbs up down",
+            value=thumbs,
+            data_type="BOOLEAN"
+        )
+
+        return get_json_result(data='ok', message="Annotation added")
+
+    except Exception as e:
+        return get_json_result(message=f"Error: {str(e)}", code=404)

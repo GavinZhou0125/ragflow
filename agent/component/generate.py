@@ -321,7 +321,7 @@ class Generate(ComponentBase):
         downstreams = self._canvas.get_component(self._id)["downstream"]
         if kwargs.get("stream") and len(downstreams) == 1 and self._canvas.get_component(downstreams[0])[
             "obj"].component_name.lower() == "answer":
-            return partial(self.stream_output, chat_mdl, prompt, retrieval_res)
+            return partial(self.stream_output, chat_mdl, prompt, retrieval_res, **kwargs)
 
         if "empty_response" in retrieval_res.columns and not "".join(retrieval_res["content"]):
             empty_res = "\n- ".join([str(t) for t in retrieval_res["empty_response"] if str(t)])
@@ -336,20 +336,20 @@ class Generate(ComponentBase):
             msg.append({"role": "user", "content": "Output: "})
 
         try:
-            ans = chat_mdl.chat(msg[0]["content"], msg[1:], self._param.gen_conf())
+            ans = chat_mdl.chat_trace(msg[0]["content"], msg[1:], self._param.gen_conf())
         finally:
             close_multiple_mcp_toolcall_sessions(mcp_toolcall_sessions)
 
-        ans = re.sub(r"^.*</think>", "", ans, flags=re.DOTALL)
+        ans['ans'] = re.sub(r"^.*</think>", "", ans['ans'], flags=re.DOTALL)
         self._canvas.set_component_infor(self._id, {"prompt": msg[0]["content"], "messages": msg[1:],
                                                     "conf": self._param.gen_conf()})
         if self._param.cite and "chunks" in retrieval_res.columns:
-            res = self.set_cite(retrieval_res, ans)
+            res = self.set_cite(retrieval_res, ans['ans'])
             return pd.DataFrame([res])
 
         return Generate.be_output(ans)
 
-    def stream_output(self, chat_mdl, prompt, retrieval_res, mcp_toolcall_sessions: list[MCPToolCallSession] = []):
+    def stream_output(self, chat_mdl, prompt, retrieval_res, mcp_toolcall_sessions: list[MCPToolCallSession] = [], **kwargs):
         res = None
         if "empty_response" in retrieval_res.columns and not "".join(retrieval_res["content"]):
             empty_res = "\n- ".join([str(t) for t in retrieval_res["empty_response"] if str(t)])
@@ -369,8 +369,10 @@ class Generate(ComponentBase):
         answer = ""
 
         try:
-            for ans in chat_mdl.chat_streamly(msg[0]["content"], msg[1:], self._param.gen_conf()):
-                res = {"content": ans, "reference": []}
+            for ans in chat_mdl.chat_streamly(msg[0]["content"], msg[1:], self._param.gen_conf(), **kwargs):
+                trace_id = ans['trace_id']
+                ans = ans['ans']
+                res = {"content": ans, "reference": [], "trace_id":trace_id }
                 answer = ans
                 yield res
         finally:
@@ -394,5 +396,5 @@ class Generate(ComponentBase):
             prompt = re.sub(r"\{%s\}" % re.escape(n), str(v).replace("\\", " "), prompt)
 
         u = kwargs.get("user")
-        ans = chat_mdl.chat(prompt, [{"role": "user", "content": u if u else "Output: "}], self._param.gen_conf())
+        ans = chat_mdl.chat_trace(prompt, [{"role": "user", "content": u if u else "Output: "}], self._param.gen_conf())
         return pd.DataFrame([ans])

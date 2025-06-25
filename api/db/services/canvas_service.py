@@ -186,28 +186,34 @@ def completion(tenant_id, agent_id, question, session_id=None, stream=True, **kw
             conv.dsl = json.loads(str(canvas))
             API4ConversationService.update_by_id(session_id, {"dsl": conv.dsl})
 
-    final_ans = {"reference": [], "content": ""}
+    final_ans = {"reference": [], "content": "", "trace_id": ""}
+    trace_id=''
     if stream:
         try:
-            for ans in canvas.run(stream=stream):
+            for ans in canvas.run(stream=stream,message_id=message_id):
                 if ans.get("running_status"):
                     yield "data:" + json.dumps({"code": 0, "message": "",
                                                 "data": {"answer": ans["content"],
+                                                         "trace_id": ans.get("trace_id", ""),
                                                          "running_status": True}},
                                                ensure_ascii=False) + "\n\n"
                     continue
                 for k in ans.keys():
                     final_ans[k] = ans[k]
-                ans = {"answer": ans["content"], "reference": ans.get("reference", []), "param": canvas.get_preset_param()}
+                if trace_id == '' and ans.get("trace_id"):
+                    trace_id = ans["trace_id"]
+                ans = {"answer": ans["content"], "trace_id": ans.get("trace_id", ""), "reference": ans.get("reference", []), "param": canvas.get_preset_param()}
                 ans = structure_answer(conv, ans, message_id, session_id)
+
                 yield "data:" + json.dumps({"code": 0, "message": "", "data": ans},
                                            ensure_ascii=False) + "\n\n"
 
-            canvas.messages.append({"role": "assistant", "content": final_ans["content"], "created_at": time.time(), "id": message_id})
+            canvas.messages.append({"role": "assistant", "content": final_ans["content"], "trace_id": trace_id, "created_at": time.time(), "id": message_id})
             canvas.history.append(("assistant", final_ans["content"]))
             if final_ans.get("reference"):
                 canvas.reference.append(final_ans["reference"])
             conv.dsl = json.loads(str(canvas))
+            conv.message[-1]["trace_id"] = trace_id
             API4ConversationService.append_message(conv.id, conv.to_dict())
         except Exception as e:
             traceback.print_exc()
@@ -219,17 +225,21 @@ def completion(tenant_id, agent_id, question, session_id=None, stream=True, **kw
         yield "data:" + json.dumps({"code": 0, "message": "", "data": True}, ensure_ascii=False) + "\n\n"
 
     else:
-        for answer in canvas.run(stream=False):
+        for answer in canvas.run(stream=False,message_id=message_id):
+
             if answer.get("running_status"):
                 continue
-            final_ans["content"] = "\n".join(answer["content"]) if "content" in answer else ""
-            canvas.messages.append({"role": "assistant", "content": final_ans["content"], "id": message_id})
+            answer = answer.loc[0]["content"]
+            if trace_id == '' and answer.get("trace_id"):
+                trace_id = answer["trace_id"]
+            final_ans["content"] = answer["ans"] if "ans" in answer else ""
+            canvas.messages.append({"role": "assistant", "content": final_ans["content"], "trace_id": trace_id, "id": message_id})
             if final_ans.get("reference"):
                 canvas.reference.append(final_ans["reference"])
             conv.dsl = json.loads(str(canvas))
-
-            result = {"answer": final_ans["content"], "reference": final_ans.get("reference", []) , "param": canvas.get_preset_param()}
-            result = structure_answer(conv, result, message_id, session_id)
+            conv.message[-1]["trace_id"] = trace_id
+            result = {"answer": final_ans["content"], "trace_id": trace_id, "reference": final_ans.get("reference", []) , "param": canvas.get_preset_param()}
+            result = structure_answer(conv, result, message_id, session_id,trace_id)
             API4ConversationService.append_message(conv.id, conv.to_dict())
             yield result
             break

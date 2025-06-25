@@ -769,6 +769,7 @@ Related search terms:
         ],
         {"temperature": 0.9},
     )
+    ans = ans["txt"]
     return get_result(data=[re.sub(r"^[0-9]\. ", "", a) for a in ans.split("\n") if re.match(r"^[0-9]\. ", a)])
 
 

@@ -754,7 +754,7 @@ class API4Conversation(DataBaseModel):
     duration = FloatField(default=0, index=True)
     round = IntegerField(default=0, index=True)
     thumb_up = IntegerField(default=0, index=True)
-
+    trace_id = CharField(max_length=255, help_text="trace_id", index=True)
     class Meta:
         db_table = "api_4_conversation"
 
