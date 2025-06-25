@@ -230,7 +230,7 @@ def completion(tenant_id, agent_id, question, session_id=None, stream=True, **kw
             if answer.get("running_status"):
                 continue
             answer = answer.loc[0]["content"]
-            if trace_id == '' and answer.get("trace_id"):
+            if trace_id == '' and not isinstance(answer,str) and answer.get("trace_id"):
                 trace_id = answer["trace_id"]
             final_ans["content"] = answer["ans"] if "ans" in answer else ""
             canvas.messages.append({"role": "assistant", "content": final_ans["content"], "trace_id": trace_id, "id": message_id})

@@ -336,7 +336,7 @@ class Generate(ComponentBase):
             msg.append({"role": "user", "content": "Output: "})
 
         try:
-            ans = chat_mdl.chat_trace(msg[0]["content"], msg[1:], self._param.gen_conf())
+            ans = chat_mdl.chat_trace(msg[0]["content"], msg[1:], self._param.gen_conf(), message_id=kwargs.get("message_id"))
         finally:
             close_multiple_mcp_toolcall_sessions(mcp_toolcall_sessions)
 
