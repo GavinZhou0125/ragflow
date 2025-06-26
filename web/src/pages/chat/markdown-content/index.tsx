@@ -1,3 +1,4 @@
+import EchartsRenderer from '@/components/echarts-renderer';
 import Image from '@/components/image';
 import SvgIcon from '@/components/svg-icon';
 import { IReference, IReferenceChunk } from '@/interfaces/database/chat';
@@ -246,9 +247,36 @@ const MarkdownContent = ({
         {
           'custom-typography': ({ children }: { children: string }) =>
             renderReference(children),
-          code(props: any) {
+          code: function (props: any) {
             const { children, className, node, ...rest } = props;
             const match = /language-(\w+)/.exec(className || '');
+            const codeText = Array.isArray(children)
+              ? children.join('')
+              : String(children);
+
+            // 支持 `option={...}` 格式的 ECharts 配置
+            const echartsMatch = /option\s*=\s*(\{[\s\S]*\})\s*;?\s*$/m.exec(
+              codeText,
+            );
+            console.error('echartsMatch', echartsMatch);
+            if (echartsMatch) {
+              try {
+                // 使用 `Function` 替代 `eval  ` 更安全（仅用于解析对象）
+                const optionObj = new Function(`return ${echartsMatch[1]}`)();
+                console.error('optionObj', optionObj);
+                if (
+                  optionObj &&
+                  typeof optionObj === 'object' &&
+                  optionObj.series
+                ) {
+                  return <EchartsRenderer option={optionObj} />;
+                }
+              } catch (e) {
+                console.warn('Failed to parse ECharts option block:', e);
+              }
+            }
+
+            // 普通代码块
             return match ? (
               <SyntaxHighlighter
                 {...rest}
@@ -256,7 +284,7 @@ const MarkdownContent = ({
                 language={match[1]}
                 wrapLongLines
               >
-                {String(children).replace(/\n$/, '')}
+                {codeText}
               </SyntaxHighlighter>
             ) : (
               <code {...rest} className={classNames(className, 'text-wrap')}>

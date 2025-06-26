@@ -192,9 +192,11 @@ def completion(tenant_id, agent_id, question, session_id=None, stream=True, **kw
         try:
             for ans in canvas.run(stream=stream,message_id=message_id):
                 if ans.get("running_status"):
+                    if trace_id == '' and ans.get("trace_id"):
+                        trace_id = ans["trace_id"]
                     yield "data:" + json.dumps({"code": 0, "message": "",
                                                 "data": {"answer": ans["content"],
-                                                         "trace_id": ans.get("trace_id", ""),
+                                                         "trace_id": trace_id,
                                                          "running_status": True}},
                                                ensure_ascii=False) + "\n\n"
                     continue
@@ -202,8 +204,8 @@ def completion(tenant_id, agent_id, question, session_id=None, stream=True, **kw
                     final_ans[k] = ans[k]
                 if trace_id == '' and ans.get("trace_id"):
                     trace_id = ans["trace_id"]
-                ans = {"answer": ans["content"], "trace_id": ans.get("trace_id", ""), "reference": ans.get("reference", []), "param": canvas.get_preset_param()}
-                ans = structure_answer(conv, ans, message_id, session_id)
+                ans = {"answer": ans["content"], "trace_id": trace_id, "reference": ans.get("reference", []), "param": canvas.get_preset_param()}
+                ans = structure_answer(conv, ans, message_id, session_id, trace_id)
 
                 yield "data:" + json.dumps({"code": 0, "message": "", "data": ans},
                                            ensure_ascii=False) + "\n\n"
