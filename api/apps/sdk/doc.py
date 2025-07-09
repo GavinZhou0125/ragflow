@@ -14,10 +14,13 @@
 #  limitations under the License.
 #
 import datetime
+import json
 import logging
 import pathlib
 import re
+from collections import deque
 from io import BytesIO
+import time
 
 import xxhash
 from flask import request, send_file
@@ -33,8 +36,10 @@ from api.db.services.file2document_service import File2DocumentService
 from api.db.services.file_service import FileService
 from api.db.services.knowledgebase_service import KnowledgebaseService
 from api.db.services.llm_service import LLMBundle, TenantLLMService
+from api.db.services.medicalrecord_service import MedicalRecordService
 from api.db.services.task_service import TaskService, queue_tasks
-from api.utils.api_utils import check_duplicate_ids, construct_json_result, get_error_data_result, get_parser_config, get_result, server_error_response, token_required
+from api.utils.api_utils import check_duplicate_ids, construct_json_result, get_error_data_result, get_parser_config, \
+    get_result, server_error_response, token_required
 from rag.app.qa import beAdoc, rmPrefix
 from rag.app.tag import label_question
 from rag.nlp import rag_tokenizer, search
@@ -131,7 +136,8 @@ def upload(dataset_id, tenant_id):
         if file_obj.filename == "":
             return get_result(message="No file selected!", code=settings.RetCode.ARGUMENT_ERROR)
         if len(file_obj.filename.encode("utf-8")) > FILE_NAME_LEN_LIMIT:
-            return get_result(message=f"File name must be {FILE_NAME_LEN_LIMIT} bytes or less.", code=settings.RetCode.ARGUMENT_ERROR)
+            return get_result(message=f"File name must be {FILE_NAME_LEN_LIMIT} bytes or less.",
+                              code=settings.RetCode.ARGUMENT_ERROR)
     """
     # total size
     total_size = 0
@@ -272,7 +278,8 @@ def update_doc(tenant_id, dataset_id, document_id):
     if "parser_config" in req:
         DocumentService.update_parser_config(doc.id, req["parser_config"])
     if "chunk_method" in req:
-        valid_chunk_method = {"naive", "manual", "qa", "table", "paper", "book", "laws", "presentation", "picture", "one", "knowledge_graph", "email", "tag"}
+        valid_chunk_method = {"naive", "manual", "qa", "table", "paper", "book", "laws", "presentation", "picture",
+                              "one", "knowledge_graph", "email", "tag"}
         if req.get("chunk_method") not in valid_chunk_method:
             return get_error_data_result(f"`chunk_method` {req['chunk_method']} doesn't exist")
 
@@ -313,7 +320,8 @@ def update_doc(tenant_id, dataset_id, document_id):
                 if not DocumentService.update_by_id(doc.id, {"status": str(status)}):
                     return get_error_data_result(message="Database error (Document update)!")
 
-                settings.docStoreConn.update({"doc_id": doc.id}, {"available_int": status}, search.index_name(kb.tenant_id), doc.kb_id)
+                settings.docStoreConn.update({"doc_id": doc.id}, {"available_int": status},
+                                             search.index_name(kb.tenant_id), doc.kb_id)
                 return get_result(data=True)
             except Exception as e:
                 return server_error_response(e)
@@ -957,12 +965,14 @@ def list_chunks(tenant_id, dataset_id, document_id):
         _ = Chunk(**final_chunk)
 
     elif settings.docStoreConn.indexExist(search.index_name(tenant_id), dataset_id):
-        sres = settings.retrievaler.search(query, search.index_name(tenant_id), [dataset_id], emb_mdl=None, highlight=True)
+        sres = settings.retrievaler.search(query, search.index_name(tenant_id), [dataset_id], emb_mdl=None,
+                                           highlight=True)
         res["total"] = sres.total
         for id in sres.ids:
             d = {
                 "id": id,
-                "content": (rmSpace(sres.highlight[id]) if question and id in sres.highlight else sres.field[id].get("content_with_weight", "")),
+                "content": (rmSpace(sres.highlight[id]) if question and id in sres.highlight else sres.field[id].get(
+                    "content_with_weight", "")),
                 "document_id": sres.field[id]["doc_id"],
                 "docnm_kwd": sres.field[id]["docnm_kwd"],
                 "important_keywords": sres.field[id].get("important_kwd", []),
@@ -1104,6 +1114,108 @@ def add_chunk(tenant_id, dataset_id, document_id):
     _ = Chunk(**renamed_chunk)  # validate the chunk
     return get_result(data={"chunk": renamed_chunk})
     # return get_result(data={"chunk_id": chunk_id})
+
+
+@manager.route(  # noqa: F821
+    "/datasets/<dataset_id>/documents/<document_id>/distrill", methods=["POST"]
+)
+@token_required
+def distrill_to_vector(tenant_id, dataset_id, document_id):
+    """
+    distrill data from medicalrecord to vectorDB.
+    """
+    if not KnowledgebaseService.accessible(kb_id=dataset_id, user_id=tenant_id):
+        return get_error_data_result(message=f"You don't own the dataset {dataset_id}.")
+    doc = DocumentService.query(id=document_id, kb_id=dataset_id)
+    if not doc:
+        return get_error_data_result(message=f"You don't own the document {document_id}.")
+    doc = doc[0]
+    req = request.json
+    records = MedicalRecordService.get_list(req.get("date_str"), 0, req.get("limit", 100))
+    total = len(records)
+    time_queue = deque()
+    for idx, record in enumerate(records, 1):
+        # 计时开始
+        now = time.time()
+        time_queue.append(now)
+        if len(time_queue) > 100:
+            time_queue.popleft()
+        percent = (idx / total) * 100 if total else 100
+
+        json_str = json.dumps(bytes_to_str(record), ensure_ascii=False)
+        important_kwd = [record.get("MD_DIS_NAME", ""), record.get("DIS_NAME_1", ""), record.get("DISE_DESC", ""),
+                         record.get("PRES_DRUGS", ""), record.get("ORGAN_NAME", ""), record.get("DPT_NAME", "")]
+        chunk_id = xxhash.xxh64((json_str + document_id).encode("utf-8")).hexdigest()
+        d = {
+            "id": chunk_id,
+            "content_ltks": rag_tokenizer.tokenize(json_str),
+            "content_with_weight": json_str,
+        }
+        d["content_sm_ltks"] = rag_tokenizer.fine_grained_tokenize(d["content_ltks"])
+        d["important_kwd"] = important_kwd
+        d["important_tks"] = rag_tokenizer.tokenize(" ".join(important_kwd))
+        d["question_kwd"] = [str(q).strip() for q in [] if str(q).strip()]
+        d["question_tks"] = rag_tokenizer.tokenize("\n".join([]))
+        d["create_time"] = str(datetime.datetime.now()).replace("T", " ")[:19]
+        d["create_timestamp_flt"] = datetime.datetime.now().timestamp()
+        d["kb_id"] = dataset_id
+        d["docnm_kwd"] = doc.name
+        d["doc_id"] = document_id
+        embd_id = DocumentService.get_embd_id(document_id)
+        embd_mdl = TenantLLMService.model_instance(tenant_id, LLMType.EMBEDDING.value, embd_id)
+        v, c = embd_mdl.encode([doc.name, json_str if not d["question_kwd"] else "\n".join(d["question_kwd"])])
+        v = 0.1 * v[0] + 0.9 * v[1]
+        d["q_%d_vec" % len(v)] = v.tolist()
+        settings.docStoreConn.insert([d], search.index_name(tenant_id), dataset_id)
+
+        DocumentService.increment_chunk_num(doc.id, doc.kb_id, c, 1, 0)
+
+        # rename keys
+        key_mapping = {
+            "id": "id",
+            "content_with_weight": "content",
+            "doc_id": "document_id",
+            "important_kwd": "important_keywords",
+            "question_kwd": "questions",
+            "kb_id": "dataset_id",
+            "create_timestamp_flt": "create_timestamp",
+            "create_time": "create_time",
+            "document_keyword": "document",
+        }
+        renamed_chunk = {}
+        for key, value in d.items():
+            if key in key_mapping:
+                new_key = key_mapping.get(key, key)
+                renamed_chunk[new_key] = value
+        _ = Chunk(**renamed_chunk)  # validate the chunk
+
+        if len(time_queue) == 100:
+            elapsed = now - time_queue[0]
+            avg_time_per_record = elapsed / 99  # 100条有99个间隔
+            remaining = total - idx
+            eta_seconds = avg_time_per_record * remaining
+            eta = datetime.datetime.now() + datetime.timedelta(seconds=eta_seconds)
+            print(
+                f"插入进度: {percent:.2f}% ({idx}/{total})，过去100条插入耗时: {elapsed:.2f}秒，预计完成时间：{eta.strftime('%Y-%m-%d %H:%M:%S')}")
+        else:
+            print(f"插入进度: {percent:.2f}% ({idx}/{total})")
+    MedicalRecordService.update_status_batch(records, 1)
+    records = bytes_to_str(records)
+    return get_result(data={"chunk": records})
+
+
+def bytes_to_str(obj):
+    if isinstance(obj, dict):
+        return {k: bytes_to_str(v) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [bytes_to_str(i) for i in obj]
+    elif isinstance(obj, bytes):
+        try:
+            return obj.decode('utf-8')
+        except UnicodeDecodeError:
+            return obj.hex()  # 或 base64
+    else:
+        return obj
 
 
 @manager.route(  # noqa: F821
@@ -1272,7 +1384,8 @@ def update_chunk(tenant_id, dataset_id, document_id, chunk_id):
         q, a = rmPrefix(arr[0]), rmPrefix(arr[1])
         d = beAdoc(d, arr[0], arr[1], not any([rag_tokenizer.is_chinese(t) for t in q + a]))
 
-    v, c = embd_mdl.encode([doc.name, d["content_with_weight"] if not d.get("question_kwd") else "\n".join(d["question_kwd"])])
+    v, c = embd_mdl.encode(
+        [doc.name, d["content_with_weight"] if not d.get("question_kwd") else "\n".join(d["question_kwd"])])
     v = 0.1 * v[0] + 0.9 * v[1] if doc.parser_id != ParserType.QA else v[1]
     d["q_%d_vec" % len(v)] = v.tolist()
     settings.docStoreConn.update({"id": chunk_id}, d, search.index_name(tenant_id), dataset_id)
@@ -1369,7 +1482,8 @@ def retrieval_test(tenant_id):
         if not KnowledgebaseService.accessible(kb_id=id, user_id=tenant_id):
             return get_error_data_result(f"You don't own the dataset {id}.")
     kbs = KnowledgebaseService.get_by_ids(kb_ids)
-    embd_nms = list(set([TenantLLMService.split_model_name_and_factory(kb.embd_id)[0] for kb in kbs]))  # remove vendor suffix for comparison
+    embd_nms = list(set([TenantLLMService.split_model_name_and_factory(kb.embd_id)[0] for kb in
+                         kbs]))  # remove vendor suffix for comparison
     if len(embd_nms) != 1:
         return get_result(
             message='Datasets use different embedding models."',
@@ -1426,7 +1540,8 @@ def retrieval_test(tenant_id):
             rank_feature=label_question(question, kbs),
         )
         if use_kg:
-            ck = settings.kg_retrievaler.retrieval(question, [k.tenant_id for k in kbs], kb_ids, embd_mdl, LLMBundle(kb.tenant_id, LLMType.CHAT))
+            ck = settings.kg_retrievaler.retrieval(question, [k.tenant_id for k in kbs], kb_ids, embd_mdl,
+                                                   LLMBundle(kb.tenant_id, LLMType.CHAT))
             if ck["content_with_weight"]:
                 ranks["chunks"].insert(0, ck)
 

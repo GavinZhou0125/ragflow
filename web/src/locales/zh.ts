@@ -467,6 +467,8 @@ General：实体和关系提取提示来自 GitHub - microsoft/graphrag：基于
       modelEnabledMcpServers: '可用的 MCP 服务器',
       modelEnabledMcpServersTip:
         '请选择一个或多个可供该模型所使用的 MCP 服务器。仅对支持工具调用的模型生效。',
+      promptRecursiveDepth: 'MCP调用深度',
+      promptRecursiveDepthTip: 'MCP调用深度',
       freedom: '自由度',
       improvise: '即兴创作',
       precise: '精确',

@@ -26,7 +26,7 @@ from functools import wraps
 
 from flask_login import UserMixin
 from itsdangerous.url_safe import URLSafeTimedSerializer as Serializer
-from peewee import BigIntegerField, BooleanField, CharField, CompositeKey, DateTimeField, Field, FloatField, IntegerField, Metadata, Model, TextField
+from peewee import BigIntegerField, BlobField, BooleanField, CharField, CompositeKey, DateField, DateTimeField, Field, FloatField, IntegerField, Metadata, Model, TextField
 from playhouse.migrate import MySQLMigrator, PostgresqlMigrator, migrate
 from playhouse.pool import PooledMySQLDatabase, PooledPostgresqlDatabase
 
@@ -855,6 +855,51 @@ class MCPServer(DataBaseModel):
 
     class Meta:
         db_table = "mcp_server"
+
+class MedicalRecordToVector(DataBaseModel):
+    SERIALNUM_ID = CharField(max_length=255, null=False, help_text='业务角度唯一性ID')
+    TASK_ID = CharField(max_length=255, null=False, help_text='任务号')
+    BATCH_NUM = CharField(max_length=255, null=False, help_text='批次号')
+    LOCAL_ID = CharField(max_length=255, null=False, help_text='人员唯一标识')
+    BUSINESS_ID = TextField(null=False, help_text='业务流水号')
+    BASIC_ACTIVE_ID = TextField(null=False, help_text='业务系统的逻辑主键或联合主键')
+    DOMAIN_CODE = CharField(max_length=255, null=False, help_text='接入系统编码')
+    ORGANIZATION_NAME = TextField(null=False, help_text='组织机构名称')
+    RESOURCE_ID = CharField(max_length=255, null=False, help_text='资源信息ID')
+    OP_EM_MARK = CharField(max_length=1, null=True, help_text='门诊/急诊标志')
+    OP_EM_NO = CharField(max_length=36, null=True, help_text='门诊/急诊号')
+    SEE_DOC_DT = DateTimeField(null=True, help_text='就诊时间')
+    CARDNO = CharField(max_length=50, null=True, help_text='患者就诊卡证号码')
+    NAME = CharField(max_length=40, null=True, help_text='患者姓名')
+    SEX = CharField(max_length=1, null=True, help_text='患者性别')
+    BIRTHDAY = DateField(null=True, help_text='患者出生日期')
+    MOBILE = CharField(max_length=16, null=True, help_text='户主手机')
+    SUBJ_COMPLAINT = BlobField(null=False, help_text='病人主诉')
+    ALLE_NAME_1 = CharField(max_length=80, null=True, help_text='过敏史①过敏源分类名称')
+    MAIN_SYMP = CharField(max_length=80, null=True, help_text='主诉：主要症状')
+    PRES_ILLN = BlobField(null=False, help_text='病史：现病史')
+    TEMP = IntegerField(null=True, help_text='体温（℃）')
+    SBP = IntegerField(null=True, help_text='收缩压（mmHg）')
+    DBP = IntegerField(null=True, help_text='舒张压（mmHg）')
+    PR = IntegerField(null=True, help_text='脉率（次/分）')
+    BREATGE = IntegerField(null=True, help_text='呼吸（次/分）')
+    MD_DIS_NAME = CharField(max_length=120, null=True, help_text='主要诊断疾病名称')
+    DIS_NAME_1 = CharField(max_length=120, null=True, help_text='其他诊断①疾病名称')
+    DISE_DESC = CharField(max_length=400, null=True, help_text='非结构化诊断（允许多个诊断），多个诊断时，相互之间用“，”分开')
+    PRES_DRUGS = CharField(max_length=800, null=True, help_text='处方药物记录')
+    IF_TEST = CharField(max_length=1, null=True, help_text='是否检验')
+    TR_MEAS = BlobField(null=False, help_text='对患者所采取处理措施记录')
+    ORGAN_NAME = CharField(max_length=80, null=True, help_text='患者此次就诊医疗机构名称')
+    DPT_NAME = CharField(max_length=40, null=True, help_text='患者此次就诊科室名称')
+    DOC_IDCARD = CharField(max_length=18, null=True, help_text='医生身份证号')
+    DOC_NAME = CharField(max_length=40, null=True, help_text='医生姓名')
+    IF_OBS_DEATH = CharField(max_length=255, null=True, help_text='是否观察室死亡')
+    IF_EM_DEATH = CharField(max_length=255, null=True, help_text='是否急诊死亡')
+    PATIENT_ID = CharField(max_length=36, null=True)
+    status = IntegerField(null=True, help_text='抽取状态0-未抽 1-成功 2-失败')
+
+    class Meta:
+        db_table = "MEDICALRECORD_to_vector"
 
 
 def migrate_db():
