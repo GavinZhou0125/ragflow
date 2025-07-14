@@ -149,4 +149,4 @@ def insert_medicalrecord_to_vector(total_count=10000, batch_size=20):
     conn.close()
 
 if __name__ == '__main__':
-    insert_medicalrecord_to_vector(total_count=10000, batch_size=20) 
+    insert_medicalrecord_to_vector(total_count=20000, batch_size=200)
