@@ -151,7 +151,7 @@ def completion(tenant_id, agent_id, question, session_id=None, stream=True, **kw
         conv = {
             "id": session_id,
             "dialog_id": cvs.id,
-            "user_id": kwargs.get("user_id", "") if isinstance(kwargs, dict) else "",
+            "user_id": "" if not isinstance(kwargs, dict) else (kwargs.get("user_id") or ""),
             "message": [{"role": "assistant", "content": canvas.get_prologue(), "created_at": time.time()}],
             "source": "agent",
             "dsl": cvs.dsl

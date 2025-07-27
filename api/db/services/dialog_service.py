@@ -112,8 +112,8 @@ def chat_solo(dialog, messages, stream=True):
         last_ans = ""
         delta_ans = ""
         for ans in chat_mdl.chat_streamly(prompt_config.get("system", ""), msg, dialog.llm_setting):
-            answer = ans
-            delta_ans = ans[len(last_ans) :]
+            answer = ans['ans']
+            delta_ans = ans['ans'][len(last_ans) :]
             if num_tokens_from_string(delta_ans) < 16:
                 continue
             last_ans = answer

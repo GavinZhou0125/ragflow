@@ -389,6 +389,21 @@
             ]
         },
         {
+            "name": "OpenAI-API-Compatible",
+            "logo": "",
+            "tags": "LLM,TEXT EMBEDDING,TEXT RE-RANK,TTS,SPEECH2TEXT,MODERATION",
+            "status": "1",
+            "llm": [
+                {
+                    "llm_name": "Qwen3-32B___OpenAI-API",
+                    "tags": "LLM,CHAT,64K",
+                    "max_tokens": 128000,
+                    "model_type": "chat",
+                    "is_tools": false
+                }
+            ]
+        },
+        {
             "name": "ZHIPU-AI",
             "logo": "",
             "tags": "LLM,TEXT EMBEDDING,SPEECH2TEXT,MODERATION",

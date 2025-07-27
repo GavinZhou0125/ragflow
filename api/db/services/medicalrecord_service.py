@@ -6,7 +6,7 @@ from api.db.services.common_service import CommonService
 from api.utils import current_timestamp, datetime_format
 
 
-class APITokenService(CommonService):
+class MDRService(CommonService):
     model = APIToken
 
     @classmethod
