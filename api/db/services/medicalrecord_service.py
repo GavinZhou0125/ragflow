@@ -42,6 +42,24 @@ class MedicalRecordService(CommonService):
 
         return list(sessions.dicts())
 
+
+    @classmethod
+    @DB.connection_context()
+    def get_list_all(cls,see_doc_dt,status):
+
+        sessions = cls.model.select()
+        # 只抽指定日期之后的
+        if see_doc_dt:
+            sessions = sessions.where(cls.model.SEE_DOC_DT >= see_doc_dt)
+
+        # 只抽没抽过的
+        if status:
+            sessions = sessions.where(cls.model.status == status)
+        else:
+            sessions = sessions.where(cls.model.status == 0)
+
+        return list(sessions.dicts())
+
     @classmethod
     @DB.connection_context()
     def update_status_batch(cls, records, new_status):
