@@ -127,7 +127,7 @@ def completion(tenant_id, agent_id, question, session_id=None, stream=True, **kw
     e, cvs = UserCanvasService.get_by_id(agent_id)
     assert e, "Agent not found."
     assert cvs.user_id == tenant_id, "You do not own the agent."
-    if not isinstance(cvs.dsl, str):
+    if not isinstance(cvs.dsl,str):
         cvs.dsl = json.dumps(cvs.dsl, ensure_ascii=False)
     canvas = Canvas(cvs.dsl, tenant_id)
     canvas.reset()
@@ -147,11 +147,11 @@ def completion(tenant_id, agent_id, question, session_id=None, stream=True, **kw
                         if "value" in ele:
                             ele.pop("value")
         cvs.dsl = json.loads(str(canvas))
-        session_id = get_uuid()
+        session_id=get_uuid()
         conv = {
             "id": session_id,
             "dialog_id": cvs.id,
-            "user_id": "" if not isinstance(kwargs, dict) else (kwargs.get("user_id") or ""),
+            "user_id": kwargs.get("user_id", "") if isinstance(kwargs, dict) else "",
             "message": [{"role": "assistant", "content": canvas.get_prologue(), "created_at": time.time()}],
             "source": "agent",
             "dsl": cvs.dsl
@@ -181,7 +181,7 @@ def completion(tenant_id, agent_id, question, session_id=None, stream=True, **kw
             if query:
                 for ele in query:
                     if ele["key"] in kwargs:
-                        if ele["value"] != kwargs[ele["key"]]:
+                        if "value" not in ele or ele["value"] != kwargs[ele["key"]]:
                             ele["value"] = kwargs[ele["key"]]
                             kwargs_changed = True
         if kwargs_changed:
@@ -198,7 +198,6 @@ def completion(tenant_id, agent_id, question, session_id=None, stream=True, **kw
                         trace_id = ans["trace_id"]
                     yield "data:" + json.dumps({"code": 0, "message": "",
                                                 "data": {"answer": ans["content"],
-                                                         "trace_id": trace_id,
                                                          "running_status": True}},
                                                ensure_ascii=False) + "\n\n"
                     continue
@@ -251,7 +250,6 @@ def completion(tenant_id, agent_id, question, session_id=None, stream=True, **kw
             API4ConversationService.append_message(conv.id, conv.to_dict())
             yield {"code": 0, "message": "", "data": result}
             break
-
 
 def completionOpenAI(tenant_id, agent_id, question, session_id=None, stream=True, **kwargs):
     """Main function for OpenAI-compatible completions, structured similarly to the completion function."""
