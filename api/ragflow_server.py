@@ -13,7 +13,10 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 #
+from apscheduler.schedulers.background import BackgroundScheduler
+from apscheduler.triggers.cron import CronTrigger
 
+from api.apps.sdk.doc import distrill_to_vector
 # from beartype import BeartypeConf
 # from beartype.claw import beartype_all  # <-- you didn't sign up for this
 # beartype_all(conf=BeartypeConf(violation_type=UserWarning))    # <-- emit warnings from all code
@@ -118,6 +121,15 @@ if __name__ == '__main__':
 
     RuntimeConfig.init_env()
     RuntimeConfig.init_config(JOB_SERVER_HOST=settings.HOST_IP, HTTP_PORT=settings.HOST_PORT)
+
+    scheduler = BackgroundScheduler()
+    scheduler.add_job(
+        func=lambda: distrill_to_vector("4293d574f34b11efb9100242ac120003", "bd12a4fc57e011f0980b0242ac120006", "document_id_xxx"),
+        trigger=CronTrigger(hour=1, minute=0),
+        id="distrill_to_vector_job",
+        replace_existing=True
+    )
+    scheduler.start()
 
     GlobalPluginManager.load_plugins()
 

@@ -15,6 +15,8 @@
 #
 import datetime
 import json
+from api.utils.log_utils import init_root_logger
+init_root_logger("ragflow_server")
 import logging
 import pathlib
 import re
@@ -27,6 +29,8 @@ from flask import request, send_file
 from peewee import OperationalError
 from pydantic import BaseModel, Field, validator
 
+
+
 from api import settings
 from api.constants import FILE_NAME_LEN_LIMIT
 from api.db import FileSource, FileType, LLMType, ParserType, TaskStatus
@@ -38,8 +42,9 @@ from api.db.services.knowledgebase_service import KnowledgebaseService
 from api.db.services.llm_service import LLMBundle, TenantLLMService
 from api.db.services.medicalrecord_service import MedicalRecordService
 from api.db.services.task_service import TaskService, queue_tasks
+from api.utils import get_uuid
 from api.utils.api_utils import check_duplicate_ids, construct_json_result, get_error_data_result, get_parser_config, \
-    get_result, server_error_response, token_required
+    get_result, server_error_response, token_required, get_data_error_result, get_json_result
 from rag.app.qa import beAdoc, rmPrefix
 from rag.app.tag import label_question
 from rag.nlp import rag_tokenizer, search
@@ -1117,21 +1122,82 @@ def add_chunk(tenant_id, dataset_id, document_id):
 
 
 @manager.route(  # noqa: F821
-    "/datasets/<dataset_id>/documents/<document_id>/distrill", methods=["POST"]
+    "/datasets/<dataset_id>/documents/distrill", methods=["POST"]
 )
 @token_required
-def distrill_to_vector(tenant_id, dataset_id, document_id):
+def distrill_to_vector(tenant_id, dataset_id):
     """
     distrill data from medicalrecord to vectorDB.
     """
+
+    # 打印当前日期时间
+    logging.info(f"{datetime.datetime.now()}---开始抽取数据库数据到向量库的定时任务")
+
     if not KnowledgebaseService.accessible(kb_id=dataset_id, user_id=tenant_id):
         return get_error_data_result(message=f"You don't own the dataset {dataset_id}.")
+    e, kb = KnowledgebaseService.get_by_id(dataset_id)
+    if not e:
+        return get_data_error_result(message="Can't find this knowledgebase!")
+    logging.info("删除去年当月过程开始================")
+    # 获取当前日期
+    now = datetime.datetime.now()
+    # 计算去年今月的日期
+    last_year = datetime.datetime(now.year - 1, now.month, 1)
+    # 格式化为 YYYY-MM
+    last_year_str = last_year.strftime("%Y-%m")
+    logging.info(f"正在删除月份：{last_year_str}")
+    # 删除name为去年本月的document
+    try:
+        delete_doc = DocumentService.query(kb_id=dataset_id, name=last_year_str)
+        if delete_doc:
+            # 🪣🧱均删
+            for delete_doc_item in delete_doc:
+                rm_document(tenant_id, delete_doc_item.id)
+            # 删🧱不删🪣
+            # rm_chunk(dataset_id=dataset_id, document_id=delete_doc_id)
+            logging.info("删除过程结束================")
+        else:
+            logging.error("没有需要删除的数据(未找到document_id)================")
+        print(datetime.datetime.now().strftime("%Y-%m"))
+        now_doc = DocumentService.query(name=datetime.datetime.now().strftime("%Y-%m"), kb_id=dataset_id)
+        if len(now_doc) > 0:
+            logging.warning("Duplicated document name in the same knowledgebase.正在删除同名🪣")
+            for now_doc_item in now_doc:
+                rm_document(tenant_id, now_doc_item.id)
+
+    except Exception as e:
+        logging.error(e)
+
+
+
+    logging.info("抽取过程开始================")
+    doc = None
+    try:
+        doc = DocumentService.insert(
+            {
+                "id": get_uuid(),
+                "kb_id": kb.id,
+                "parser_id": kb.parser_id,
+                "parser_config": kb.parser_config,
+                "created_by": tenant_id,
+                "type": FileType.VIRTUAL,
+                "name": datetime.datetime.now().strftime("%Y-%m"),
+                "location": "",
+                "size": 0,
+            }
+        )
+        document_id = doc.id
+    except Exception as e:
+        logging.error(f"抽取过程异常：{e}")
+        rm_document(tenant_id,doc.id)
+        return get_error_data_result(message="Extract data failed.新增空白文件失败")
+
+
     doc = DocumentService.query(id=document_id, kb_id=dataset_id)
     if not doc:
-        return get_error_data_result(message=f"You don't own the document {document_id}.")
+        return get_error_data_result(message="You don't own the document.")
     doc = doc[0]
-    req = request.json
-    records = MedicalRecordService.get_list(req.get("date_str"), 0, req.get("limit", 100))
+    records = MedicalRecordService.get_list_all(datetime.datetime(now.year, now.month, 1), 0)
     total = len(records)
     time_queue = deque()
     for idx, record in enumerate(records, 1):
@@ -1195,13 +1261,67 @@ def distrill_to_vector(tenant_id, dataset_id, document_id):
             remaining = total - idx
             eta_seconds = avg_time_per_record * remaining
             eta = datetime.datetime.now() + datetime.timedelta(seconds=eta_seconds)
-            print(
+            logging.info(
                 f"插入进度: {percent:.2f}% ({idx}/{total})，过去100条插入耗时: {elapsed:.2f}秒，预计完成时间：{eta.strftime('%Y-%m-%d %H:%M:%S')}")
         else:
-            print(f"插入进度: {percent:.2f}% ({idx}/{total})")
+            logging.info(f"插入进度: {percent:.2f}% ({idx}/{total})")
     MedicalRecordService.update_status_batch(records, 1)
+    logging.info("抽取过程结束================")
     records = bytes_to_str(records)
-    return get_result(data={"chunk": records})
+    return get_result(data={"delete": len(records)})
+
+def rm_document(tenant_id,doc_ids):
+    if isinstance(doc_ids, str):
+        doc_ids = [doc_ids]
+
+    for doc_id in doc_ids:
+        if not DocumentService.accessible4deletion(doc_id, tenant_id):
+            return get_json_result(data=False, message="No authorization.", code=settings.RetCode.AUTHENTICATION_ERROR)
+
+    root_folder = FileService.get_root_folder(tenant_id)
+    pf_id = root_folder["id"]
+    FileService.init_knowledgebase_docs(pf_id, tenant_id)
+    errors = ""
+    kb_table_num_map = {}
+    for doc_id in doc_ids:
+        try:
+            e, doc = DocumentService.get_by_id(doc_id)
+            if not e:
+                return get_data_error_result(message="Document not found!")
+            tenant_id = DocumentService.get_tenant_id(doc_id)
+            if not tenant_id:
+                return get_data_error_result(message="Tenant not found!")
+
+            b, n = File2DocumentService.get_storage_address(doc_id=doc_id)
+
+            TaskService.filter_delete([Task.doc_id == doc_id])
+            if not DocumentService.remove_document(doc, tenant_id):
+                return get_data_error_result(message="Database error (Document removal)!")
+
+            f2d = File2DocumentService.get_by_document_id(doc_id)
+            deleted_file_count = 0
+            if f2d:
+                deleted_file_count = FileService.filter_delete([File.source_type == FileSource.KNOWLEDGEBASE, File.id == f2d[0].file_id])
+            File2DocumentService.delete_by_document_id(doc_id)
+            if deleted_file_count > 0:
+                STORAGE_IMPL.rm(b, n)
+
+            doc_parser = doc.parser_id
+            if doc_parser == ParserType.TABLE:
+                kb_id = doc.kb_id
+                if kb_id not in kb_table_num_map:
+                    counts = DocumentService.count_by_kb_id(kb_id=kb_id, keywords="", run_status=[TaskStatus.DONE], types=[])
+                    kb_table_num_map[kb_id] = counts
+                kb_table_num_map[kb_id] -= 1
+                if kb_table_num_map[kb_id] <= 0:
+                    KnowledgebaseService.delete_field_map(kb_id)
+        except Exception as e:
+            errors += str(e)
+
+    if errors:
+        return get_json_result(data=False, message=errors, code=settings.RetCode.SERVER_ERROR)
+
+    return get_json_result(data=True)
 
 
 def bytes_to_str(obj):
@@ -1271,6 +1391,7 @@ def rm_chunk(tenant_id, dataset_id, document_id):
         raise LookupError(f"Can't find the document with ID {document_id}!")
     req = request.json
     condition = {"doc_id": document_id}
+    unique_chunk_ids, duplicate_messages = None, None
     if "chunk_ids" in req:
         unique_chunk_ids, duplicate_messages = check_duplicate_ids(req["chunk_ids"], "chunk")
         condition["id"] = unique_chunk_ids
