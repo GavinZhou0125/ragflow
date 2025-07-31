@@ -110,15 +110,11 @@ class ComponentParamBase(ABC):
         update_from_raw_conf = conf.get(_IS_RAW_CONF, True)
         if update_from_raw_conf:
             deprecated_params_set = self._get_or_init_deprecated_params_set()
-            feeded_deprecated_params_set = (
-                self._get_or_init_feeded_deprecated_params_set()
-            )
+            feeded_deprecated_params_set = self._get_or_init_feeded_deprecated_params_set()
             user_feeded_params_set = self._get_or_init_user_feeded_params_set()
             setattr(self, _IS_RAW_CONF, False)
         else:
-            feeded_deprecated_params_set = (
-                self._get_or_init_feeded_deprecated_params_set(conf)
-            )
+            feeded_deprecated_params_set = self._get_or_init_feeded_deprecated_params_set(conf)
             user_feeded_params_set = self._get_or_init_user_feeded_params_set(conf)
 
         def _recursive_update_param(param, config, depth, prefix):
@@ -154,15 +150,11 @@ class ComponentParamBase(ABC):
 
                 else:
                     # recursive set obj attr
-                    sub_params = _recursive_update_param(
-                        attr, config_value, depth + 1, prefix=f"{prefix}{config_key}."
-                    )
+                    sub_params = _recursive_update_param(attr, config_value, depth + 1, prefix=f"{prefix}{config_key}.")
                     setattr(param, config_key, sub_params)
 
             if not allow_redundant and redundant_attrs:
-                raise ValueError(
-                    f"cpn `{getattr(self, '_name', type(self))}` has redundant parameters: `{[redundant_attrs]}`"
-                )
+                raise ValueError(f"cpn `{getattr(self, '_name', type(self))}` has redundant parameters: `{[redundant_attrs]}`")
 
             return param
 
@@ -193,9 +185,7 @@ class ComponentParamBase(ABC):
         param_validation_path_prefix = home_dir + "/param_validation/"
 
         param_name = type(self).__name__
-        param_validation_path = "/".join(
-            [param_validation_path_prefix, param_name + ".json"]
-        )
+        param_validation_path = "/".join([param_validation_path_prefix, param_name + ".json"])
 
         validation_json = None
 
@@ -568,5 +558,5 @@ class ComponentBase(ABC):
         return self._canvas.get_component(pid)["obj"]
 
     def get_upstream(self):
-        cpn_nms = self._canvas.get_component(self._id)['upstream']
+        cpn_nms = self._canvas.get_component(self._id)["upstream"]
         return cpn_nms

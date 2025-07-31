@@ -52,4 +52,3 @@ class Message(ComponentBase, ABC):
 
         self.set_output(res)
 
-
