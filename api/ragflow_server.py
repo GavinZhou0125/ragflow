@@ -15,8 +15,9 @@
 #
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
+from apscheduler.triggers.interval import IntervalTrigger
 
-from api.apps.sdk.doc import distrill_to_vector
+from api.apps.sdk.doc import distill_to_vector, distill
 # from beartype import BeartypeConf
 # from beartype.claw import beartype_all  # <-- you didn't sign up for this
 # beartype_all(conf=BeartypeConf(violation_type=UserWarning))    # <-- emit warnings from all code
@@ -123,9 +124,22 @@ if __name__ == '__main__':
     RuntimeConfig.init_config(JOB_SERVER_HOST=settings.HOST_IP, HTTP_PORT=settings.HOST_PORT)
 
     scheduler = BackgroundScheduler()
+    def distill_to_vector_job():
+        from api.apps import app
+        with app.app_context():
+            logging.info("[Scheduler] distill triggered")
+            distill_to_vector()
+
     scheduler.add_job(
-        func=lambda: distrill_to_vector("4293d574f34b11efb9100242ac120003", "bd12a4fc57e011f0980b0242ac120006", "document_id_xxx"),
-        trigger=CronTrigger(hour=1, minute=0),
+        func=lambda: distill_to_vector_job(),
+        # func=lambda: distill_to_vector("4293d574f34b11efb9100242ac120003", "bd12a4fc57e011f0980b0242ac120006", "document_id_xxx"),
+        # trigger=CronTrigger(
+        #     day='1-7',  # 每月的前7天
+        #     day_of_week='sat',  # 周六
+        #     hour=3,
+        #     minute=0
+        # ),
+        trigger=IntervalTrigger(hours=30),
         id="distrill_to_vector_job",
         replace_existing=True
     )

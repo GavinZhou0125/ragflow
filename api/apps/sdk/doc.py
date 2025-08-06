@@ -1122,10 +1122,10 @@ def add_chunk(tenant_id, dataset_id, document_id):
 
 
 @manager.route(  # noqa: F821
-    "/datasets/<dataset_id>/documents/distrill", methods=["POST"]
+    "/datasets/<dataset_id>/documents/distill", methods=["POST"]
 )
 @token_required
-def distrill_to_vector(tenant_id, dataset_id):
+def distill_to_vector(tenant_id, dataset_id):
     """
     distrill data from medicalrecord to vectorDB.
     """
@@ -1209,8 +1209,14 @@ def distrill_to_vector(tenant_id, dataset_id):
         percent = (idx / total) * 100 if total else 100
 
         json_str = json.dumps(bytes_to_str(record), ensure_ascii=False)
-        important_kwd = [record.get("MD_DIS_NAME", ""), record.get("DIS_NAME_1", ""), record.get("DISE_DESC", ""),
-                         record.get("PRES_DRUGS", ""), record.get("ORGAN_NAME", ""), record.get("DPT_NAME", "")]
+        important_kwd = [
+            record.get("MD_DIS_NAME") or "",
+            record.get("DIS_NAME_1") or "",
+            record.get("DISE_DESC") or "",
+            record.get("PRES_DRUGS") or "",
+            record.get("ORGAN_NAME") or "",
+            record.get("DPT_NAME") or ""
+        ]
         chunk_id = xxhash.xxh64((json_str + document_id).encode("utf-8")).hexdigest()
         d = {
             "id": chunk_id,
@@ -1269,6 +1275,11 @@ def distrill_to_vector(tenant_id, dataset_id):
     logging.info("抽取过程结束================")
     records = bytes_to_str(records)
     return get_result(data={"delete": len(records)})
+
+
+def distill():
+    logging.info(f"开始抽取数据库数据到向量库的定时任务")
+    return get_result(data={"delete": 123})
 
 def rm_document(tenant_id,doc_ids):
     if isinstance(doc_ids, str):

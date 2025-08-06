@@ -183,6 +183,29 @@ export const useSendMessageWithSse = (
     ): Promise<{ response: Response; data: ResponseType } | undefined> => {
       initializeSseRef();
       try {
+        if (body?.enableGetId) {
+          const getIdBody = {
+            secret:
+              '76EB1AEA9DB484E08DA45CFB8964020AD6142B24C02FA3A75698FB55F0030AE213060D7D545FEDB0574583DC624C4FD4',
+            token: '',
+            residentId: '',
+            code: '',
+            serialNumber: '',
+          };
+          const Response = await fetch(
+            'http://10.100.52.60/ehr/authentication',
+            {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify(getIdBody),
+            },
+          );
+          const data = await Response.clone().json();
+          body.id = data?.data?.idCard;
+          console.log('id', JSON.stringify(data));
+        }
         setDone(false);
         const response = await fetch(url, {
           method: 'POST',

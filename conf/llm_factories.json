@@ -399,7 +399,7 @@
                     "tags": "LLM,CHAT,64K",
                     "max_tokens": 128000,
                     "model_type": "chat",
-                    "is_tools": false
+                    "is_tools": true
                 }
             ]
         },
