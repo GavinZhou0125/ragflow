@@ -40,7 +40,7 @@ from api.db.services.file2document_service import File2DocumentService
 from api.db.services.file_service import FileService
 from api.db.services.knowledgebase_service import KnowledgebaseService
 from api.db.services.llm_service import LLMBundle, TenantLLMService
-from api.db.services.medicalrecord_service import MedicalRecordService
+from api.db.services.medicalrecord_service import MedicalRecordService, InHospitalRecordService
 from api.db.services.task_service import TaskService, queue_tasks
 from api.utils import get_uuid
 from api.utils.api_utils import check_duplicate_ids, construct_json_result, get_error_data_result, get_parser_config, \
@@ -1125,7 +1125,7 @@ def add_chunk(tenant_id, dataset_id, document_id):
     "/datasets/<dataset_id>/documents/distill", methods=["POST"]
 )
 @token_required
-def distill_to_vector(tenant_id, dataset_id):
+def distill_to_vector(tenant_id, med_dataset_id, in_hos_dataset_id):
     """
     distrill data from medicalrecord to vectorDB.
     """
@@ -1133,11 +1133,21 @@ def distill_to_vector(tenant_id, dataset_id):
     # 打印当前日期时间
     logging.info(f"{datetime.datetime.now()}---开始抽取数据库数据到向量库的定时任务")
 
-    if not KnowledgebaseService.accessible(kb_id=dataset_id, user_id=tenant_id):
-        return get_error_data_result(message=f"You don't own the dataset {dataset_id}.")
-    e, kb = KnowledgebaseService.get_by_id(dataset_id)
-    if not e:
-        return get_data_error_result(message="Can't find this knowledgebase!")
+    if not KnowledgebaseService.accessible(kb_id=med_dataset_id, user_id=tenant_id):
+        return get_error_data_result(message=f"门急诊记录数据集ID错误 {med_dataset_id}.")
+
+    if not KnowledgebaseService.accessible(kb_id=in_hos_dataset_id, user_id=tenant_id):
+        return get_error_data_result(message=f"入院记录数据集ID错误 {in_hos_dataset_id}.")
+
+    med_e, med_kb = KnowledgebaseService.get_by_id(med_dataset_id)
+    in_hos_e, in_hos_kb = KnowledgebaseService.get_by_id(in_hos_dataset_id)
+
+    if not med_e:
+        return get_data_error_result(message="找不到门急诊记录表数据集")
+
+    if not in_hos_e:
+        return get_data_error_result(message="找不到入院记录表数据集")
+
     logging.info("删除去年当月过程开始================")
     # 获取当前日期
     now = datetime.datetime.now()
@@ -1146,39 +1156,53 @@ def distill_to_vector(tenant_id, dataset_id):
     # 格式化为 YYYY-MM
     last_year_str = last_year.strftime("%Y-%m")
     logging.info(f"正在删除月份：{last_year_str}")
+
     # 删除name为去年本月的document
     try:
-        delete_doc = DocumentService.query(kb_id=dataset_id, name=last_year_str)
-        if delete_doc:
+        delete_doc_med = DocumentService.query(kb_id=med_dataset_id, name=last_year_str)
+        delete_doc_in_hos = DocumentService.delete_by_ids(kb_id=in_hos_dataset_id, name=last_year_str)
+        if delete_doc_med:
             # 🪣🧱均删
-            for delete_doc_item in delete_doc:
+            for delete_doc_item in delete_doc_med:
                 rm_document(tenant_id, delete_doc_item.id)
             # 删🧱不删🪣
-            # rm_chunk(dataset_id=dataset_id, document_id=delete_doc_id)
-            logging.info("删除过程结束================")
+            # rm_chunk(med_dataset_id=med_dataset_id, document_id=delete_doc_id)
+            logging.info("门急诊记录删除过程结束================")
         else:
-            logging.error("没有需要删除的数据(未找到document_id)================")
+            logging.error("没有需要删除的数据(未找到门急诊记录document_id)================")
+
+        if delete_doc_in_hos:
+            logging.info("入院记录删除过程结束================")
+        else:
+            logging.error("没有需要删除的数据(未找到入院记录document_id)================")
+
         print(datetime.datetime.now().strftime("%Y-%m"))
-        now_doc = DocumentService.query(name=datetime.datetime.now().strftime("%Y-%m"), kb_id=dataset_id)
-        if len(now_doc) > 0:
-            logging.warning("Duplicated document name in the same knowledgebase.正在删除同名🪣")
-            for now_doc_item in now_doc:
+        now_med_doc = DocumentService.query(name=datetime.datetime.now().strftime("%Y-%m"), kb_id=med_dataset_id)
+        now_in_hos_doc = DocumentService.query(name=datetime.datetime.now().strftime("%Y-%m"), kb_id=in_hos_dataset_id)
+
+        if len(now_med_doc) > 0:
+            logging.warning("正在删除同名门急诊记录🪣")
+            for now_doc_item in now_med_doc:
+                rm_document(tenant_id, now_doc_item.id)
+
+        if len(now_in_hos_doc) > 0:
+            logging.warning("正在删除同名门急诊记录🪣")
+            for now_doc_item in now_in_hos_doc:
                 rm_document(tenant_id, now_doc_item.id)
 
     except Exception as e:
         logging.error(e)
 
-
-
     logging.info("抽取过程开始================")
-    doc = None
+    med_doc = None
+    in_hos_doc = None
     try:
-        doc = DocumentService.insert(
+        med_doc = DocumentService.insert(
             {
                 "id": get_uuid(),
-                "kb_id": kb.id,
-                "parser_id": kb.parser_id,
-                "parser_config": kb.parser_config,
+                "kb_id": med_kb.id,
+                "parser_id": med_kb.parser_id,
+                "parser_config": med_kb.parser_config,
                 "created_by": tenant_id,
                 "type": FileType.VIRTUAL,
                 "name": datetime.datetime.now().strftime("%Y-%m"),
@@ -1186,27 +1210,53 @@ def distill_to_vector(tenant_id, dataset_id):
                 "size": 0,
             }
         )
-        document_id = doc.id
+        med_document_id = med_doc.id
+
+        in_hos_doc = DocumentService.insert(
+            {
+                "id": get_uuid(),
+                "kb_id": med_kb.id,
+                "parser_id": med_kb.parser_id,
+                "parser_config": med_kb.parser_config,
+                "created_by": tenant_id,
+                "type": FileType.VIRTUAL,
+                "name": datetime.datetime.now().strftime("%Y-%m"),
+                "location": "",
+                "size": 0,
+            }
+        )
+        in_hos_document_id = med_doc.id
     except Exception as e:
         logging.error(f"抽取过程异常：{e}")
-        rm_document(tenant_id,doc.id)
+        rm_document(tenant_id,med_doc.id)
+        rm_document(tenant_id,in_hos_doc.id)
         return get_error_data_result(message="Extract data failed.新增空白文件失败")
 
+    med_doc = DocumentService.query(id=med_document_id, kb_id=med_dataset_id)
+    in_hos_doc = DocumentService.query(id=in_hos_document_id, kb_id=in_hos_dataset_id)
 
-    doc = DocumentService.query(id=document_id, kb_id=dataset_id)
-    if not doc:
-        return get_error_data_result(message="You don't own the document.")
-    doc = doc[0]
-    records = MedicalRecordService.get_list_all(datetime.datetime(now.year, now.month, 1), 0)
-    total = len(records)
+    if not med_doc:
+        return get_error_data_result(message="读取med_doc失败.")
+    if not in_hos_doc:
+        return get_error_data_result(message="读取in_hos_doc失败.")
+    med_doc = med_doc[0]
+    in_hos_doc = in_hos_doc[0]
+
+    med_records = MedicalRecordService.get_list_all(datetime.datetime(now.year, now.month, 1), 0)
+    in_hos_records = InHospitalRecordService.get_list_all(datetime.datetime(now.year, now.month, 1), 0)
+    total_med = len(med_records)
+    total_in_hos = len(in_hos_records)
     time_queue = deque()
-    for idx, record in enumerate(records, 1):
+
+
+    logging.info("开始执行门急诊记录向量化引擎")
+    for idx, record in enumerate(med_records, 1):
         # 计时开始
         now = time.time()
         time_queue.append(now)
         if len(time_queue) > 100:
             time_queue.popleft()
-        percent = (idx / total) * 100 if total else 100
+        percent = (idx / total_med) * 100 if total_med else 100
 
         json_str = json.dumps(bytes_to_str(record), ensure_ascii=False)
         important_kwd = [
@@ -1217,7 +1267,7 @@ def distill_to_vector(tenant_id, dataset_id):
             record.get("ORGAN_NAME") or "",
             record.get("DPT_NAME") or ""
         ]
-        chunk_id = xxhash.xxh64((json_str + document_id).encode("utf-8")).hexdigest()
+        chunk_id = xxhash.xxh64((json_str + med_document_id).encode("utf-8")).hexdigest()
         d = {
             "id": chunk_id,
             "content_ltks": rag_tokenizer.tokenize(json_str),
@@ -1230,17 +1280,17 @@ def distill_to_vector(tenant_id, dataset_id):
         d["question_tks"] = rag_tokenizer.tokenize("\n".join([]))
         d["create_time"] = str(datetime.datetime.now()).replace("T", " ")[:19]
         d["create_timestamp_flt"] = datetime.datetime.now().timestamp()
-        d["kb_id"] = dataset_id
-        d["docnm_kwd"] = doc.name
-        d["doc_id"] = document_id
-        embd_id = DocumentService.get_embd_id(document_id)
+        d["kb_id"] = med_dataset_id
+        d["docnm_kwd"] = med_doc.name
+        d["doc_id"] = med_document_id
+        embd_id = DocumentService.get_embd_id(med_document_id)
         embd_mdl = TenantLLMService.model_instance(tenant_id, LLMType.EMBEDDING.value, embd_id)
-        v, c = embd_mdl.encode([doc.name, json_str if not d["question_kwd"] else "\n".join(d["question_kwd"])])
+        v, c = embd_mdl.encode([med_doc.name, json_str if not d["question_kwd"] else "\n".join(d["question_kwd"])])
         v = 0.1 * v[0] + 0.9 * v[1]
         d["q_%d_vec" % len(v)] = v.tolist()
-        settings.docStoreConn.insert([d], search.index_name(tenant_id), dataset_id)
+        settings.docStoreConn.insert([d], search.index_name(tenant_id), med_dataset_id)
 
-        DocumentService.increment_chunk_num(doc.id, doc.kb_id, c, 1, 0)
+        DocumentService.increment_chunk_num(med_doc.id, med_doc.kb_id, c, 1, 0)
 
         # rename keys
         key_mapping = {
@@ -1264,22 +1314,94 @@ def distill_to_vector(tenant_id, dataset_id):
         if len(time_queue) == 100:
             elapsed = now - time_queue[0]
             avg_time_per_record = elapsed / 99  # 100条有99个间隔
-            remaining = total - idx
+            remaining = total_med - idx
             eta_seconds = avg_time_per_record * remaining
             eta = datetime.datetime.now() + datetime.timedelta(seconds=eta_seconds)
             logging.info(
-                f"插入进度: {percent:.2f}% ({idx}/{total})，过去100条插入耗时: {elapsed:.2f}秒，预计完成时间：{eta.strftime('%Y-%m-%d %H:%M:%S')}")
+                f"插入进度: {percent:.2f}% ({idx}/{total_med})，过去100条插入耗时: {elapsed:.2f}秒，预计完成时间：{eta.strftime('%Y-%m-%d %H:%M:%S')}")
         else:
-            logging.info(f"插入进度: {percent:.2f}% ({idx}/{total})")
-    MedicalRecordService.update_status_batch(records, 1)
-    logging.info("抽取过程结束================")
-    records = bytes_to_str(records)
-    return get_result(data={"delete": len(records)})
+            logging.info(f"插入进度: {percent:.2f}% ({idx}/{total_med})")
+    MedicalRecordService.update_status_batch(med_records, 1)
+    logging.info("门急诊记录抽取过程结束================")
+    records_done_med = bytes_to_str(med_records)
 
 
-def distill():
-    logging.info(f"开始抽取数据库数据到向量库的定时任务")
-    return get_result(data={"delete": 123})
+    logging.info("开始执行入院记录向量化引擎")
+    for idx, record in enumerate(in_hos_records, 1):
+        # 计时开始
+        now = time.time()
+        time_queue.append(now)
+        if len(time_queue) > 100:
+            time_queue.popleft()
+        percent = (idx / total_in_hos) * 100 if total_in_hos else 100
+
+        json_str = json.dumps(bytes_to_str(record), ensure_ascii=False)
+        important_kwd = [
+            record.get("MD_DIS_NAME") or "",
+            record.get("DIS_NAME_1") or "",
+            record.get("DISE_DESC") or "",
+            record.get("PRES_DRUGS") or "",
+            record.get("ORGAN_NAME") or "",
+            record.get("DPT_NAME") or ""
+        ]
+        chunk_id = xxhash.xxh64((json_str + med_document_id).encode("utf-8")).hexdigest()
+        d = {
+            "id": chunk_id,
+            "content_ltks": rag_tokenizer.tokenize(json_str),
+            "content_with_weight": json_str,
+        }
+        d["content_sm_ltks"] = rag_tokenizer.fine_grained_tokenize(d["content_ltks"])
+        d["important_kwd"] = important_kwd
+        d["important_tks"] = rag_tokenizer.tokenize(" ".join(important_kwd))
+        d["question_kwd"] = [str(q).strip() for q in [] if str(q).strip()]
+        d["question_tks"] = rag_tokenizer.tokenize("\n".join([]))
+        d["create_time"] = str(datetime.datetime.now()).replace("T", " ")[:19]
+        d["create_timestamp_flt"] = datetime.datetime.now().timestamp()
+        d["kb_id"] = med_dataset_id
+        d["docnm_kwd"] = in_hos_doc.name
+        d["doc_id"] = med_document_id
+        embd_id = DocumentService.get_embd_id(med_document_id)
+        embd_mdl = TenantLLMService.model_instance(tenant_id, LLMType.EMBEDDING.value, embd_id)
+        v, c = embd_mdl.encode([in_hos_doc.name, json_str if not d["question_kwd"] else "\n".join(d["question_kwd"])])
+        v = 0.1 * v[0] + 0.9 * v[1]
+        d["q_%d_vec" % len(v)] = v.tolist()
+        settings.docStoreConn.insert([d], search.index_name(tenant_id), med_dataset_id)
+
+        DocumentService.increment_chunk_num(in_hos_doc.id, in_hos_doc.kb_id, c, 1, 0)
+
+        # rename keys
+        key_mapping = {
+            "id": "id",
+            "content_with_weight": "content",
+            "doc_id": "document_id",
+            "important_kwd": "important_keywords",
+            "question_kwd": "questions",
+            "kb_id": "dataset_id",
+            "create_timestamp_flt": "create_timestamp",
+            "create_time": "create_time",
+            "document_keyword": "document",
+        }
+        renamed_chunk = {}
+        for key, value in d.items():
+            if key in key_mapping:
+                new_key = key_mapping.get(key, key)
+                renamed_chunk[new_key] = value
+        _ = Chunk(**renamed_chunk)  # validate the chunk
+
+        if len(time_queue) == 100:
+            elapsed = now - time_queue[0]
+            avg_time_per_record = elapsed / 99  # 100条有99个间隔
+            remaining = total_in_hos - idx
+            eta_seconds = avg_time_per_record * remaining
+            eta = datetime.datetime.now() + datetime.timedelta(seconds=eta_seconds)
+            logging.info(
+                f"插入进度: {percent:.2f}% ({idx}/{total_in_hos})，过去100条插入耗时: {elapsed:.2f}秒，预计完成时间：{eta.strftime('%Y-%m-%d %H:%M:%S')}")
+        else:
+            logging.info(f"插入进度: {percent:.2f}% ({idx}/{total_in_hos})")
+    InHospitalRecordService.update_status_batch(in_hos_records, 1)
+    logging.info("入院记录抽取过程结束================")
+    records_done_in_hos = bytes_to_str(in_hos_records)
+    return get_result(data={"med": len(records_done_med), "in_hos": len(records_done_in_hos)})
 
 def rm_document(tenant_id,doc_ids):
     if isinstance(doc_ids, str):

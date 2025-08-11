@@ -39,10 +39,10 @@ export default defineConfig({
   proxy: [
     {
       context: ['/api', '/v1'],
-      target: 'http://10.100.52.37/',
+      target: 'http://localhost:9380/',
       changeOrigin: true,
       ws: true,
-      logger: console,
+      logLevel: 'silent',
       // pathRewrite: { '^/v1': '/v1' },
     },
   ],
