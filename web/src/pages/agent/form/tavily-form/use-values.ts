@@ -1,23 +1,23 @@
-import { RAGFlowNodeType } from '@/interfaces/database/flow';
+import { RAGFlowNodeType } from '@/interfaces/database/agent';
 import { isEmpty } from 'lodash';
 import { useMemo } from 'react';
-
-const defaultValues = {
-  content: [],
-};
+import { initialTavilyValues } from '../../constant';
+import { convertToObjectArray } from '../../utils';
 
 export function useValues(node?: RAGFlowNodeType) {
   const values = useMemo(() => {
     const formData = node?.data?.form;
 
     if (isEmpty(formData)) {
-      return defaultValues;
+      return initialTavilyValues;
     }
 
     return {
       ...formData,
+      include_domains: convertToObjectArray(formData.include_domains),
+      exclude_domains: convertToObjectArray(formData.exclude_domains),
     };
-  }, [node]);
+  }, [node?.data?.form]);
 
   return values;
 }

@@ -837,6 +837,10 @@ export const LanguageOptions = [
     label: 'Deutsch',
   },
   {
+    value: 'fr',
+    label: 'Français',
+  },
+  {
     value: 'et',
     label: 'Eesti',
   },

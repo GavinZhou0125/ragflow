@@ -26,8 +26,7 @@ from functools import wraps
 
 from flask_login import UserMixin
 from itsdangerous.url_safe import URLSafeTimedSerializer as Serializer
-from peewee import BigIntegerField, BlobField, BooleanField, CharField, CompositeKey, DateField, DateTimeField, Field, \
-    FloatField, IntegerField, Metadata, Model, TextField
+from peewee import BigIntegerField, BooleanField, CharField, CompositeKey, DateTimeField, Field, FloatField, IntegerField, Metadata, Model, TextField
 from playhouse.migrate import MySQLMigrator, PostgresqlMigrator, migrate
 from playhouse.pool import PooledMySQLDatabase, PooledPostgresqlDatabase
 
@@ -168,8 +167,7 @@ class BaseModel(Model):
 
     @classmethod
     def get_primary_keys_name(cls):
-        return cls._meta.primary_key.field_names if isinstance(cls._meta.primary_key, CompositeKey) else [
-            cls._meta.primary_key.name]
+        return cls._meta.primary_key.field_names if isinstance(cls._meta.primary_key, CompositeKey) else [cls._meta.primary_key.name]
 
     @classmethod
     def getter_by(cls, attr):
@@ -234,22 +232,62 @@ class BaseModel(Model):
         normalized[cls._meta.combined["update_time"]] = utils.current_timestamp()
 
         for f_n in AUTO_DATE_TIMESTAMP_FIELD_PREFIX:
-            if {f"{f_n}_time", f"{f_n}_date"}.issubset(cls._meta.combined.keys()) and cls._meta.combined[
-                f"{f_n}_time"] in normalized and normalized[cls._meta.combined[f"{f_n}_time"]] is not None:
-                normalized[cls._meta.combined[f"{f_n}_date"]] = utils.timestamp_to_date(
-                    normalized[cls._meta.combined[f"{f_n}_time"]])
+            if {f"{f_n}_time", f"{f_n}_date"}.issubset(cls._meta.combined.keys()) and cls._meta.combined[f"{f_n}_time"] in normalized and normalized[cls._meta.combined[f"{f_n}_time"]] is not None:
+                normalized[cls._meta.combined[f"{f_n}_date"]] = utils.timestamp_to_date(normalized[cls._meta.combined[f"{f_n}_time"]])
 
         return normalized
 
 
 class JsonSerializedField(SerializedField):
     def __init__(self, object_hook=utils.from_dict_hook, object_pairs_hook=None, **kwargs):
-        super(JsonSerializedField, self).__init__(serialized_type=SerializedType.JSON, object_hook=object_hook,
-                                                  object_pairs_hook=object_pairs_hook, **kwargs)
+        super(JsonSerializedField, self).__init__(serialized_type=SerializedType.JSON, object_hook=object_hook, object_pairs_hook=object_pairs_hook, **kwargs)
+
+
+class RetryingPooledMySQLDatabase(PooledMySQLDatabase):
+    def __init__(self, *args, **kwargs):
+        self.max_retries = kwargs.pop('max_retries', 5)
+        self.retry_delay = kwargs.pop('retry_delay', 1)
+        super().__init__(*args, **kwargs)
+
+    def execute_sql(self, sql, params=None, commit=True):
+        from peewee import OperationalError
+        for attempt in range(self.max_retries + 1):
+            try:
+                return super().execute_sql(sql, params, commit)
+            except OperationalError as e:
+                if e.args[0] in (2013, 2006) and attempt < self.max_retries:
+                    logging.warning(
+                        f"Lost connection (attempt {attempt+1}/{self.max_retries}): {e}"
+                    )
+                    self._handle_connection_loss()
+                    time.sleep(self.retry_delay * (2 ** attempt))
+                else:
+                    logging.error(f"DB execution failure: {e}")
+                    raise
+        return None
+
+    def _handle_connection_loss(self):
+        self.close_all()
+        self.connect()
+
+    def begin(self):
+        from peewee import OperationalError
+        for attempt in range(self.max_retries + 1):
+            try:
+                return super().begin()
+            except OperationalError as e:
+                if e.args[0] in (2013, 2006) and attempt < self.max_retries:
+                    logging.warning(
+                        f"Lost connection during transaction (attempt {attempt+1}/{self.max_retries})"
+                    )
+                    self._handle_connection_loss()
+                    time.sleep(self.retry_delay * (2 ** attempt))
+                else:
+                    raise
 
 
 class PooledDatabase(Enum):
-    MYSQL = PooledMySQLDatabase
+    MYSQL = RetryingPooledMySQLDatabase
     POSTGRES = PooledPostgresqlDatabase
 
 
@@ -293,9 +331,8 @@ def with_retry(max_retries=3, retry_delay=1.0):
                     lock_name = getattr(self_obj, "lock_name", "unknown") if self_obj else "unknown"
 
                     if retry < max_retries - 1:
-                        current_delay = retry_delay * (2 ** retry)
-                        logging.warning(
-                            f"{func_name} {lock_name} failed: {str(e)}, retrying ({retry + 1}/{max_retries})")
+                        current_delay = retry_delay * (2**retry)
+                        logging.warning(f"{func_name} {lock_name} failed: {str(e)}, retrying ({retry + 1}/{max_retries})")
                         time.sleep(current_delay)
                     else:
                         logging.error(f"{func_name} {lock_name} failed after all attempts: {str(e)}")
@@ -312,7 +349,7 @@ def with_retry(max_retries=3, retry_delay=1.0):
 class PostgresDatabaseLock:
     def __init__(self, lock_name, timeout=10, db=None):
         self.lock_name = lock_name
-        self.lock_id = int(hashlib.md5(lock_name.encode()).hexdigest(), 16) % (2 ** 31 - 1)
+        self.lock_id = int(hashlib.md5(lock_name.encode()).hexdigest(), 16) % (2**31 - 1)
         self.timeout = int(timeout)
         self.db = db if db else DB
 
@@ -426,6 +463,7 @@ class DataBaseModel(BaseModel):
 
 
 @DB.connection_context()
+@DB.lock("init_database_tables", 60)
 def init_database_tables(alter_fields=[]):
     members = inspect.getmembers(sys.modules[__name__], inspect.isclass)
     table_objs = []
@@ -437,7 +475,7 @@ def init_database_tables(alter_fields=[]):
             if not obj.table_exists():
                 logging.debug(f"start create table {obj.__name__}")
                 try:
-                    obj.create_table()
+                    obj.create_table(safe=True)
                     logging.debug(f"create table success: {obj.__name__}")
                 except Exception as e:
                     logging.exception(e)
@@ -466,8 +504,7 @@ class User(DataBaseModel, UserMixin):
     password = CharField(max_length=255, null=True, help_text="password", index=True)
     email = CharField(max_length=255, null=False, help_text="email", index=True)
     avatar = TextField(null=True, help_text="avatar base64 string")
-    language = CharField(max_length=32, null=True, help_text="English|Chinese",
-                         default="Chinese" if "zh_CN" in os.getenv("LANG", "") else "English", index=True)
+    language = CharField(max_length=32, null=True, help_text="English|Chinese", default="Chinese" if "zh_CN" in os.getenv("LANG", "") else "English", index=True)
     color_schema = CharField(max_length=32, null=True, help_text="Bright|Dark", default="Bright", index=True)
     timezone = CharField(max_length=64, null=True, help_text="Timezone", default="UTC+8\tAsia/Shanghai", index=True)
     last_login_time = DateTimeField(null=True, index=True)
@@ -475,8 +512,7 @@ class User(DataBaseModel, UserMixin):
     is_active = CharField(max_length=1, null=False, default="1", index=True)
     is_anonymous = CharField(max_length=1, null=False, default="0", index=True)
     login_channel = CharField(null=True, help_text="from which user login", index=True)
-    status = CharField(max_length=1, null=True, help_text="is it validate(0: wasted, 1: validate)", default="1",
-                       index=True)
+    status = CharField(max_length=1, null=True, help_text="is it validate(0: wasted, 1: validate)", default="1", index=True)
     is_superuser = BooleanField(null=True, help_text="is root", default=False, index=True)
 
     def __str__(self):
@@ -502,8 +538,7 @@ class Tenant(DataBaseModel):
     tts_id = CharField(max_length=256, null=True, help_text="default tts model ID", index=True)
     parser_ids = CharField(max_length=256, null=False, help_text="document processors", index=True)
     credit = IntegerField(default=512, index=True)
-    status = CharField(max_length=1, null=True, help_text="is it validate(0: wasted, 1: validate)", default="1",
-                       index=True)
+    status = CharField(max_length=1, null=True, help_text="is it validate(0: wasted, 1: validate)", default="1", index=True)
 
     class Meta:
         db_table = "tenant"
@@ -515,8 +550,7 @@ class UserTenant(DataBaseModel):
     tenant_id = CharField(max_length=32, null=False, index=True)
     role = CharField(max_length=32, null=False, help_text="UserTenantRole", index=True)
     invited_by = CharField(max_length=32, null=False, index=True)
-    status = CharField(max_length=1, null=True, help_text="is it validate(0: wasted, 1: validate)", default="1",
-                       index=True)
+    status = CharField(max_length=1, null=True, help_text="is it validate(0: wasted, 1: validate)", default="1", index=True)
 
     class Meta:
         db_table = "user_tenant"
@@ -528,8 +562,7 @@ class InvitationCode(DataBaseModel):
     visit_time = DateTimeField(null=True, index=True)
     user_id = CharField(max_length=32, null=True, index=True)
     tenant_id = CharField(max_length=32, null=True, index=True)
-    status = CharField(max_length=1, null=True, help_text="is it validate(0: wasted, 1: validate)", default="1",
-                       index=True)
+    status = CharField(max_length=1, null=True, help_text="is it validate(0: wasted, 1: validate)", default="1", index=True)
 
     class Meta:
         db_table = "invitation_code"
@@ -539,8 +572,7 @@ class LLMFactories(DataBaseModel):
     name = CharField(max_length=128, null=False, help_text="LLM factory name", primary_key=True)
     logo = TextField(null=True, help_text="llm logo base64")
     tags = CharField(max_length=255, null=False, help_text="LLM, Text Embedding, Image2Text, ASR", index=True)
-    status = CharField(max_length=1, null=True, help_text="is it validate(0: wasted, 1: validate)", default="1",
-                       index=True)
+    status = CharField(max_length=1, null=True, help_text="is it validate(0: wasted, 1: validate)", default="1", index=True)
 
     def __str__(self):
         return self.name
@@ -558,8 +590,7 @@ class LLM(DataBaseModel):
 
     tags = CharField(max_length=255, null=False, help_text="LLM, Text Embedding, Image2Text, Chat, 32k...", index=True)
     is_tools = BooleanField(null=False, help_text="support tools", default=False)
-    status = CharField(max_length=1, null=True, help_text="is it validate(0: wasted, 1: validate)", default="1",
-                       index=True)
+    status = CharField(max_length=1, null=True, help_text="is it validate(0: wasted, 1: validate)", default="1", index=True)
 
     def __str__(self):
         return self.llm_name
@@ -605,8 +636,7 @@ class Knowledgebase(DataBaseModel):
     avatar = TextField(null=True, help_text="avatar base64 string")
     tenant_id = CharField(max_length=32, null=False, index=True)
     name = CharField(max_length=128, null=False, help_text="KB name", index=True)
-    language = CharField(max_length=32, null=True, default="Chinese" if "zh_CN" in os.getenv("LANG", "") else "English",
-                         help_text="English|Chinese", index=True)
+    language = CharField(max_length=32, null=True, default="Chinese" if "zh_CN" in os.getenv("LANG", "") else "English", help_text="English|Chinese", index=True)
     description = TextField(null=True, help_text="KB description")
     embd_id = CharField(max_length=128, null=False, help_text="default embedding model ID", index=True)
     permission = CharField(max_length=16, null=False, help_text="me|team", default="me", index=True)
@@ -617,12 +647,10 @@ class Knowledgebase(DataBaseModel):
     similarity_threshold = FloatField(default=0.2, index=True)
     vector_similarity_weight = FloatField(default=0.3, index=True)
 
-    parser_id = CharField(max_length=32, null=False, help_text="default parser ID", default=ParserType.NAIVE.value,
-                          index=True)
+    parser_id = CharField(max_length=32, null=False, help_text="default parser ID", default=ParserType.NAIVE.value, index=True)
     parser_config = JSONField(null=False, default={"pages": [[1, 1000000]]})
     pagerank = IntegerField(default=0, index=False)
-    status = CharField(max_length=1, null=True, help_text="is it validate(0: wasted, 1: validate)", default="1",
-                       index=True)
+    status = CharField(max_length=1, null=True, help_text="is it validate(0: wasted, 1: validate)", default="1", index=True)
 
     def __str__(self):
         return self.name
@@ -637,8 +665,7 @@ class Document(DataBaseModel):
     kb_id = CharField(max_length=256, null=False, index=True)
     parser_id = CharField(max_length=32, null=False, help_text="default parser ID", index=True)
     parser_config = JSONField(null=False, default={"pages": [[1, 1000000]]})
-    source_type = CharField(max_length=128, null=False, default="local", help_text="where dose this document come from",
-                            index=True)
+    source_type = CharField(max_length=128, null=False, default="local", help_text="where dose this document come from", index=True)
     type = CharField(max_length=32, null=False, help_text="file extension", index=True)
     created_by = CharField(max_length=32, null=False, help_text="who created it", index=True)
     name = CharField(max_length=255, null=True, help_text="file name", index=True)
@@ -649,13 +676,12 @@ class Document(DataBaseModel):
     progress = FloatField(default=0, index=True)
     progress_msg = TextField(null=True, help_text="process message", default="")
     process_begin_at = DateTimeField(null=True, index=True)
-    process_duation = FloatField(default=0)
+    process_duration = FloatField(default=0)
     meta_fields = JSONField(null=True, default={})
+    suffix = CharField(max_length=32, null=False, help_text="The real file extension suffix", index=True)
 
-    run = CharField(max_length=1, null=True, help_text="start to run processing or cancel.(1: run it; 2: cancel)",
-                    default="0", index=True)
-    status = CharField(max_length=1, null=True, help_text="is it validate(0: wasted, 1: validate)", default="1",
-                       index=True)
+    run = CharField(max_length=1, null=True, help_text="start to run processing or cancel.(1: run it; 2: cancel)", default="0", index=True)
+    status = CharField(max_length=1, null=True, help_text="is it validate(0: wasted, 1: validate)", default="1", index=True)
 
     class Meta:
         db_table = "document"
@@ -670,8 +696,7 @@ class File(DataBaseModel):
     location = CharField(max_length=255, null=True, help_text="where dose it store", index=True)
     size = IntegerField(default=0, index=True)
     type = CharField(max_length=32, null=False, help_text="file extension", index=True)
-    source_type = CharField(max_length=128, null=False, default="", help_text="where dose this document come from",
-                            index=True)
+    source_type = CharField(max_length=128, null=False, default="", help_text="where dose this document come from", index=True)
 
     class Meta:
         db_table = "file"
@@ -695,7 +720,7 @@ class Task(DataBaseModel):
     priority = IntegerField(default=0)
 
     begin_at = DateTimeField(null=True, index=True)
-    process_duation = FloatField(default=0)
+    process_duration = FloatField(default=0)
 
     progress = FloatField(default=0, index=True)
     progress_msg = TextField(null=True, help_text="process message", default="")
@@ -710,17 +735,14 @@ class Dialog(DataBaseModel):
     name = CharField(max_length=255, null=True, help_text="dialog application name", index=True)
     description = TextField(null=True, help_text="Dialog description")
     icon = TextField(null=True, help_text="icon base64 string")
-    language = CharField(max_length=32, null=True, default="Chinese" if "zh_CN" in os.getenv("LANG", "") else "English",
-                         help_text="English|Chinese", index=True)
+    language = CharField(max_length=32, null=True, default="Chinese" if "zh_CN" in os.getenv("LANG", "") else "English", help_text="English|Chinese", index=True)
     llm_id = CharField(max_length=128, null=False, help_text="default llm ID")
 
-    llm_setting = JSONField(null=False, default={"temperature": 0.1, "top_p": 0.3, "frequency_penalty": 0.7,
-                                                 "presence_penalty": 0.4, "max_tokens": 512})
+    llm_setting = JSONField(null=False, default={"temperature": 0.1, "top_p": 0.3, "frequency_penalty": 0.7, "presence_penalty": 0.4, "max_tokens": 512})
     prompt_type = CharField(max_length=16, null=False, default="simple", help_text="simple|advanced", index=True)
     prompt_config = JSONField(
         null=False,
-        default={"system": "", "prologue": "Hi! I'm your assistant, what can I do for you?", "parameters": [],
-                 "empty_response": "Sorry! No relevant content was found in the knowledge base!"},
+        default={"system": "", "prologue": "Hi! I'm your assistant, what can I do for you?", "parameters": [], "empty_response": "Sorry! No relevant content was found in the knowledge base!"},
     )
 
     similarity_threshold = FloatField(default=0.2)
@@ -730,14 +752,12 @@ class Dialog(DataBaseModel):
 
     top_k = IntegerField(default=1024)
 
-    do_refer = CharField(max_length=1, null=False, default="1",
-                         help_text="it needs to insert reference index into answer or not")
+    do_refer = CharField(max_length=1, null=False, default="1", help_text="it needs to insert reference index into answer or not")
 
     rerank_id = CharField(max_length=128, null=False, help_text="default rerank model ID")
 
     kb_ids = JSONField(null=False, default=[])
-    status = CharField(max_length=1, null=True, help_text="is it validate(0: wasted, 1: validate)", default="1",
-                       index=True)
+    status = CharField(max_length=1, null=True, help_text="is it validate(0: wasted, 1: validate)", default="1", index=True)
 
     class Meta:
         db_table = "dialog"
@@ -779,6 +799,7 @@ class API4Conversation(DataBaseModel):
     duration = FloatField(default=0, index=True)
     round = IntegerField(default=0, index=True)
     thumb_up = IntegerField(default=0, index=True)
+    errors = TextField(null=True, help_text="errors")
     trace_id = CharField(max_length=255, help_text="trace_id", index=True)
 
     class Meta:
@@ -825,6 +846,20 @@ class UserCanvasVersion(DataBaseModel):
         db_table = "user_canvas_version"
 
 
+class MCPServer(DataBaseModel):
+    id = CharField(max_length=32, primary_key=True)
+    name = CharField(max_length=255, null=False, help_text="MCP Server name")
+    tenant_id = CharField(max_length=32, null=False, index=True)
+    url = CharField(max_length=2048, null=False, help_text="MCP Server URL")
+    server_type = CharField(max_length=32, null=False, help_text="MCP Server type")
+    description = TextField(null=True, help_text="MCP Server description")
+    variables = JSONField(null=True, default=dict, help_text="MCP Server variables")
+    headers = JSONField(null=True, default=dict, help_text="MCP Server additional request headers")
+
+    class Meta:
+        db_table = "mcp_server"
+
+
 class Search(DataBaseModel):
     id = CharField(max_length=32, primary_key=True)
     avatar = TextField(null=True, help_text="avatar base64 string")
@@ -860,28 +895,13 @@ class Search(DataBaseModel):
             "query_mindmap": False,
         },
     )
-    status = CharField(max_length=1, null=True, help_text="is it validate(0: wasted, 1: validate)", default="1",
-                       index=True)
+    status = CharField(max_length=1, null=True, help_text="is it validate(0: wasted, 1: validate)", default="1", index=True)
 
     def __str__(self):
         return self.name
 
     class Meta:
         db_table = "search"
-
-
-class MCPServer(DataBaseModel):
-    id = CharField(max_length=32, primary_key=True)
-    name = CharField(max_length=255, null=False, help_text="MCP Server name")
-    tenant_id = CharField(max_length=32, null=False, index=True)
-    url = CharField(max_length=2048, null=False, help_text="MCP Server URL")
-    server_type = CharField(max_length=32, null=False, help_text="MCP Server type")
-    description = TextField(null=True, help_text="MCP Server description")
-    variables = JSONField(null=True, default=[], help_text="MCP Server variables")
-    headers = JSONField(null=True, default={}, help_text="MCP Server additional request headers")
-
-    class Meta:
-        db_table = "mcp_server"
 
 
 class MedicalRecordToVector(DataBaseModel):
@@ -974,22 +994,18 @@ class InHospitalRecordToVector(DataBaseModel):
 
 
 def migrate_db():
+    logging.disable(logging.ERROR)
     migrator = DatabaseMigrator[settings.DATABASE_TYPE.upper()].value(DB)
     try:
-        migrate(migrator.add_column("file", "source_type", CharField(max_length=128, null=False, default="",
-                                                                     help_text="where dose this document come from",
-                                                                     index=True)))
+        migrate(migrator.add_column("file", "source_type", CharField(max_length=128, null=False, default="", help_text="where dose this document come from", index=True)))
     except Exception:
         pass
     try:
-        migrate(migrator.add_column("tenant", "rerank_id",
-                                    CharField(max_length=128, null=False, default="BAAI/bge-reranker-v2-m3",
-                                              help_text="default rerank model ID")))
+        migrate(migrator.add_column("tenant", "rerank_id", CharField(max_length=128, null=False, default="BAAI/bge-reranker-v2-m3", help_text="default rerank model ID")))
     except Exception:
         pass
     try:
-        migrate(migrator.add_column("dialog", "rerank_id", CharField(max_length=128, null=False, default="",
-                                                                     help_text="default rerank model ID")))
+        migrate(migrator.add_column("dialog", "rerank_id", CharField(max_length=128, null=False, default="", help_text="default rerank model ID")))
     except Exception:
         pass
     try:
@@ -997,23 +1013,19 @@ def migrate_db():
     except Exception:
         pass
     try:
-        migrate(migrator.alter_column_type("tenant_llm", "api_key",
-                                           CharField(max_length=2048, null=True, help_text="API KEY", index=True)))
+        migrate(migrator.alter_column_type("tenant_llm", "api_key", CharField(max_length=2048, null=True, help_text="API KEY", index=True)))
     except Exception:
         pass
     try:
-        migrate(migrator.add_column("api_token", "source",
-                                    CharField(max_length=16, null=True, help_text="none|agent|dialog", index=True)))
+        migrate(migrator.add_column("api_token", "source", CharField(max_length=16, null=True, help_text="none|agent|dialog", index=True)))
     except Exception:
         pass
     try:
-        migrate(migrator.add_column("tenant", "tts_id",
-                                    CharField(max_length=256, null=True, help_text="default tts model ID", index=True)))
+        migrate(migrator.add_column("tenant", "tts_id", CharField(max_length=256, null=True, help_text="default tts model ID", index=True)))
     except Exception:
         pass
     try:
-        migrate(migrator.add_column("api_4_conversation", "source",
-                                    CharField(max_length=16, null=True, help_text="none|agent|dialog", index=True)))
+        migrate(migrator.add_column("api_4_conversation", "source", CharField(max_length=16, null=True, help_text="none|agent|dialog", index=True)))
     except Exception:
         pass
     try:
@@ -1050,8 +1062,7 @@ def migrate_db():
     except Exception:
         pass
     try:
-        migrate(migrator.add_column("conversation", "user_id",
-                                    CharField(max_length=255, null=True, help_text="user_id", index=True)))
+        migrate(migrator.add_column("conversation", "user_id", CharField(max_length=255, null=True, help_text="user_id", index=True)))
     except Exception:
         pass
     try:
@@ -1067,18 +1078,31 @@ def migrate_db():
     except Exception:
         pass
     try:
-        migrate(migrator.add_column("user_canvas", "permission",
-                                    CharField(max_length=16, null=False, help_text="me|team", default="me",
-                                              index=True)))
+        migrate(migrator.add_column("user_canvas", "permission", CharField(max_length=16, null=False, help_text="me|team", default="me", index=True)))
     except Exception:
         pass
     try:
-        migrate(
-            migrator.add_column("llm", "is_tools", BooleanField(null=False, help_text="support tools", default=False)))
+        migrate(migrator.add_column("llm", "is_tools", BooleanField(null=False, help_text="support tools", default=False)))
     except Exception:
         pass
     try:
-        migrate(migrator.add_column("mcp_server", "variables",
-                                    JSONField(null=True, help_text="MCP Server variables", default=[])))
+        migrate(migrator.add_column("mcp_server", "variables", JSONField(null=True, help_text="MCP Server variables", default=dict)))
     except Exception:
         pass
+    try:
+        migrate(migrator.rename_column("task", "process_duation", "process_duration"))
+    except Exception:
+        pass
+    try:
+        migrate(migrator.rename_column("document", "process_duation", "process_duration"))
+    except Exception:
+        pass
+    try:
+        migrate(migrator.add_column("document", "suffix", CharField(max_length=32, null=False, default="", help_text="The real file extension suffix", index=True)))
+    except Exception:
+        pass
+    try:
+        migrate(migrator.add_column("api_4_conversation", "errors", TextField(null=True, help_text="errors")))
+    except Exception:
+        pass
+    logging.disable(logging.NOTSET)
