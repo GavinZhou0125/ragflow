@@ -1,7 +1,8 @@
 from datetime import datetime
 
 
-from api.db.db_models import DB, API4Conversation, APIToken, Dialog, MedicalRecordToVector, InHospitalRecord
+from api.db.db_models import DB, API4Conversation, APIToken, Dialog, MedicalRecordToVector, \
+    InHospitalRecordToVector
 from api.db.services.common_service import CommonService
 from api.utils import current_timestamp, datetime_format
 
@@ -79,7 +80,7 @@ class MedicalRecordService(CommonService):
 
 
 class InHospitalRecordService(CommonService):
-    model = InHospitalRecord
+    model = InHospitalRecordToVector
 
     @classmethod
     @DB.connection_context()

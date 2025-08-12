@@ -16,6 +16,7 @@
 import datetime
 import json
 from api.utils.log_utils import init_root_logger
+
 init_root_logger("ragflow_server")
 import logging
 import pathlib
@@ -28,8 +29,6 @@ import xxhash
 from flask import request, send_file
 from peewee import OperationalError
 from pydantic import BaseModel, Field, validator
-
-
 
 from api import settings
 from api.constants import FILE_NAME_LEN_LIMIT
@@ -1122,13 +1121,17 @@ def add_chunk(tenant_id, dataset_id, document_id):
 
 
 @manager.route(  # noqa: F821
-    "/datasets/<dataset_id>/documents/distill", methods=["POST"]
+    "/datasets/<med_dataset_id>/<in_hos_dataset_id>/documents/distill", methods=["POST"]
 )
 @token_required
 def distill_to_vector(tenant_id, med_dataset_id, in_hos_dataset_id):
     """
     distrill data from medicalrecord to vectorDB.
     """
+    req = request.json
+    full_year = req.get("full_year", False)
+    med_document_id = req.get("med_document_id", None)
+    in_hos_document_id = req.get("in_hos_document_id", None)
 
     # 打印当前日期时间
     logging.info(f"{datetime.datetime.now()}---开始抽取数据库数据到向量库的定时任务")
@@ -1197,39 +1200,45 @@ def distill_to_vector(tenant_id, med_dataset_id, in_hos_dataset_id):
     med_doc = None
     in_hos_doc = None
     try:
-        med_doc = DocumentService.insert(
-            {
-                "id": get_uuid(),
-                "kb_id": med_kb.id,
-                "parser_id": med_kb.parser_id,
-                "parser_config": med_kb.parser_config,
-                "created_by": tenant_id,
-                "type": FileType.VIRTUAL,
-                "name": datetime.datetime.now().strftime("%Y-%m"),
-                "location": "",
-                "size": 0,
-            }
-        )
-        med_document_id = med_doc.id
+        if med_document_id is not None:
+            med_doc = DocumentService.get_by_id(med_document_id)
+        elif in_hos_document_id is not None:
+            in_hos_doc = DocumentService.get_by_id(in_hos_document_id)
+        else:
+            med_doc = DocumentService.insert(
+                {
+                    "id": get_uuid(),
+                    "kb_id": med_kb.id,
+                    "parser_id": med_kb.parser_id,
+                    "parser_config": med_kb.parser_config,
+                    "created_by": tenant_id,
+                    "type": FileType.VIRTUAL,
+                    "name": datetime.datetime.now().strftime("%Y-%m"),
+                    "location": "",
+                    "size": 0,
+                }
+            )
+            med_document_id = med_doc.id
 
-        in_hos_doc = DocumentService.insert(
-            {
-                "id": get_uuid(),
-                "kb_id": med_kb.id,
-                "parser_id": med_kb.parser_id,
-                "parser_config": med_kb.parser_config,
-                "created_by": tenant_id,
-                "type": FileType.VIRTUAL,
-                "name": datetime.datetime.now().strftime("%Y-%m"),
-                "location": "",
-                "size": 0,
-            }
-        )
-        in_hos_document_id = med_doc.id
+            in_hos_doc = DocumentService.insert(
+                {
+                    "id": get_uuid(),
+                    "kb_id": in_hos_kb.id,
+                    "parser_id": in_hos_kb.parser_id,
+                    "parser_config": in_hos_kb.parser_config,
+                    "created_by": tenant_id,
+                    "type": FileType.VIRTUAL,
+                    "name": datetime.datetime.now().strftime("%Y-%m"),
+                    "location": "",
+                    "size": 0,
+                }
+            )
+            in_hos_document_id = in_hos_doc.id
+
     except Exception as e:
         logging.error(f"抽取过程异常：{e}")
-        rm_document(tenant_id,med_doc.id)
-        rm_document(tenant_id,in_hos_doc.id)
+        rm_document(tenant_id, med_doc.id)
+        rm_document(tenant_id, in_hos_doc.id)
         return get_error_data_result(message="Extract data failed.新增空白文件失败")
 
     med_doc = DocumentService.query(id=med_document_id, kb_id=med_dataset_id)
@@ -1242,12 +1251,12 @@ def distill_to_vector(tenant_id, med_dataset_id, in_hos_dataset_id):
     med_doc = med_doc[0]
     in_hos_doc = in_hos_doc[0]
 
-    med_records = MedicalRecordService.get_list_all(datetime.datetime(now.year, now.month, 1), 0)
-    in_hos_records = InHospitalRecordService.get_list_all(datetime.datetime(now.year, now.month, 1), 0)
+    start_year = now.year - 1 if full_year else now.year
+    med_records = MedicalRecordService.get_list_all(datetime.datetime(start_year, now.month - 1, 1), 0)
+    in_hos_records = InHospitalRecordService.get_list_all(datetime.datetime(start_year, now.month - 1, 1), 0)
     total_med = len(med_records)
     total_in_hos = len(in_hos_records)
     time_queue = deque()
-
 
     logging.info("开始执行门急诊记录向量化引擎")
     for idx, record in enumerate(med_records, 1):
@@ -1325,7 +1334,6 @@ def distill_to_vector(tenant_id, med_dataset_id, in_hos_dataset_id):
     logging.info("门急诊记录抽取过程结束================")
     records_done_med = bytes_to_str(med_records)
 
-
     logging.info("开始执行入院记录向量化引擎")
     for idx, record in enumerate(in_hos_records, 1):
         # 计时开始
@@ -1337,14 +1345,12 @@ def distill_to_vector(tenant_id, med_dataset_id, in_hos_dataset_id):
 
         json_str = json.dumps(bytes_to_str(record), ensure_ascii=False)
         important_kwd = [
-            record.get("MD_DIS_NAME") or "",
-            record.get("DIS_NAME_1") or "",
-            record.get("DISE_DESC") or "",
-            record.get("PRES_DRUGS") or "",
-            record.get("ORGAN_NAME") or "",
-            record.get("DPT_NAME") or ""
+            record.get("PD_DIS_NAME") or "",
+            record.get("PD_DIS_NAME_1") or "",
+            record.get("IH_DPT_NAME") or "",
+            record.get("MD_DIS_DES") or ""
         ]
-        chunk_id = xxhash.xxh64((json_str + med_document_id).encode("utf-8")).hexdigest()
+        chunk_id = xxhash.xxh64((json_str + in_hos_document_id).encode("utf-8")).hexdigest()
         d = {
             "id": chunk_id,
             "content_ltks": rag_tokenizer.tokenize(json_str),
@@ -1357,15 +1363,15 @@ def distill_to_vector(tenant_id, med_dataset_id, in_hos_dataset_id):
         d["question_tks"] = rag_tokenizer.tokenize("\n".join([]))
         d["create_time"] = str(datetime.datetime.now()).replace("T", " ")[:19]
         d["create_timestamp_flt"] = datetime.datetime.now().timestamp()
-        d["kb_id"] = med_dataset_id
+        d["kb_id"] = in_hos_dataset_id
         d["docnm_kwd"] = in_hos_doc.name
-        d["doc_id"] = med_document_id
-        embd_id = DocumentService.get_embd_id(med_document_id)
+        d["doc_id"] = in_hos_document_id
+        embd_id = DocumentService.get_embd_id(in_hos_document_id)
         embd_mdl = TenantLLMService.model_instance(tenant_id, LLMType.EMBEDDING.value, embd_id)
         v, c = embd_mdl.encode([in_hos_doc.name, json_str if not d["question_kwd"] else "\n".join(d["question_kwd"])])
         v = 0.1 * v[0] + 0.9 * v[1]
         d["q_%d_vec" % len(v)] = v.tolist()
-        settings.docStoreConn.insert([d], search.index_name(tenant_id), med_dataset_id)
+        settings.docStoreConn.insert([d], search.index_name(tenant_id), in_hos_dataset_id)
 
         DocumentService.increment_chunk_num(in_hos_doc.id, in_hos_doc.kb_id, c, 1, 0)
 
@@ -1403,7 +1409,8 @@ def distill_to_vector(tenant_id, med_dataset_id, in_hos_dataset_id):
     records_done_in_hos = bytes_to_str(in_hos_records)
     return get_result(data={"med": len(records_done_med), "in_hos": len(records_done_in_hos)})
 
-def rm_document(tenant_id,doc_ids):
+
+def rm_document(tenant_id, doc_ids):
     if isinstance(doc_ids, str):
         doc_ids = [doc_ids]
 
@@ -1434,7 +1441,8 @@ def rm_document(tenant_id,doc_ids):
             f2d = File2DocumentService.get_by_document_id(doc_id)
             deleted_file_count = 0
             if f2d:
-                deleted_file_count = FileService.filter_delete([File.source_type == FileSource.KNOWLEDGEBASE, File.id == f2d[0].file_id])
+                deleted_file_count = FileService.filter_delete(
+                    [File.source_type == FileSource.KNOWLEDGEBASE, File.id == f2d[0].file_id])
             File2DocumentService.delete_by_document_id(doc_id)
             if deleted_file_count > 0:
                 STORAGE_IMPL.rm(b, n)
@@ -1443,7 +1451,8 @@ def rm_document(tenant_id,doc_ids):
             if doc_parser == ParserType.TABLE:
                 kb_id = doc.kb_id
                 if kb_id not in kb_table_num_map:
-                    counts = DocumentService.count_by_kb_id(kb_id=kb_id, keywords="", run_status=[TaskStatus.DONE], types=[])
+                    counts = DocumentService.count_by_kb_id(kb_id=kb_id, keywords="", run_status=[TaskStatus.DONE],
+                                                            types=[])
                     kb_table_num_map[kb_id] = counts
                 kb_table_num_map[kb_id] -= 1
                 if kb_table_num_map[kb_id] <= 0:
