@@ -1,0 +1,2 @@
+docker build --build-arg NEED_MIRROR=1 -f Dockerfile --platform linux/amd64 -t rag-neu:mcp .
+docker save -o rag-neu.tar --platform linux/amd64 rag-neu:mcp
