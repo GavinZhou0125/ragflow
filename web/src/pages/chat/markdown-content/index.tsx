@@ -29,6 +29,7 @@ import {
 import { currentReg, replaceTextByOldReg } from '../utils';
 
 import classNames from 'classnames';
+import { omit } from 'lodash';
 import { pipe } from 'lodash/fp';
 import styles from './index.less';
 
@@ -249,6 +250,7 @@ const MarkdownContent = ({
             renderReference(children),
           code: function (props: any) {
             const { children, className, node, ...rest } = props;
+            const restProps = omit(rest, 'node');
             const match = /language-(\w+)/.exec(className || '');
             const codeText = Array.isArray(children)
               ? children.join('')
@@ -279,15 +281,18 @@ const MarkdownContent = ({
             // 普通代码块
             return match ? (
               <SyntaxHighlighter
-                {...rest}
+                {...restProps}
                 PreTag="div"
                 language={match[1]}
                 wrapLongLines
               >
-                {codeText}
+                {String(children).replace(/\n$/, '')}
               </SyntaxHighlighter>
             ) : (
-              <code {...rest} className={classNames(className, 'text-wrap')}>
+              <code
+                {...restProps}
+                className={classNames(className, 'text-wrap')}
+              >
                 {children}
               </code>
             );
