@@ -1,4 +1,3 @@
-import { useFetchMultipleMcpServers } from '@/hooks/mcp-server-setting-hooks';
 import get from 'lodash/get';
 import { useCallback, useMemo } from 'react';
 import { v4 as uuid } from 'uuid';
