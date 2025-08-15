@@ -14,17 +14,11 @@
 #  limitations under the License.
 #
 import datetime
-import json
-from api.utils.log_utils import init_root_logger
-
-init_root_logger("ragflow_server")
 import logging
 import pathlib
 import re
-from collections import deque
 from io import BytesIO
 import time
-
 import xxhash
 from flask import request, send_file
 from peewee import OperationalError
@@ -38,6 +32,7 @@ from api.db.services.document_service import DocumentService
 from api.db.services.file2document_service import File2DocumentService
 from api.db.services.file_service import FileService
 from api.db.services.knowledgebase_service import KnowledgebaseService
+from api.db.services.tenant_llm_service import TenantLLMService
 from api.db.services.llm_service import LLMBundle, TenantLLMService
 from api.db.services.medicalrecord_service import MedicalRecordService, InHospitalRecordService
 from api.db.services.task_service import TaskService, queue_tasks
@@ -140,8 +135,7 @@ def upload(dataset_id, tenant_id):
         if file_obj.filename == "":
             return get_result(message="No file selected!", code=settings.RetCode.ARGUMENT_ERROR)
         if len(file_obj.filename.encode("utf-8")) > FILE_NAME_LEN_LIMIT:
-            return get_result(message=f"File name must be {FILE_NAME_LEN_LIMIT} bytes or less.",
-                              code=settings.RetCode.ARGUMENT_ERROR)
+            return get_result(message=f"File name must be {FILE_NAME_LEN_LIMIT} bytes or less.", code=settings.RetCode.ARGUMENT_ERROR)
     """
     # total size
     total_size = 0
@@ -282,8 +276,7 @@ def update_doc(tenant_id, dataset_id, document_id):
     if "parser_config" in req:
         DocumentService.update_parser_config(doc.id, req["parser_config"])
     if "chunk_method" in req:
-        valid_chunk_method = {"naive", "manual", "qa", "table", "paper", "book", "laws", "presentation", "picture",
-                              "one", "knowledge_graph", "email", "tag"}
+        valid_chunk_method = {"naive", "manual", "qa", "table", "paper", "book", "laws", "presentation", "picture", "one", "knowledge_graph", "email", "tag"}
         if req.get("chunk_method") not in valid_chunk_method:
             return get_error_data_result(f"`chunk_method` {req['chunk_method']} doesn't exist")
 
@@ -324,8 +317,7 @@ def update_doc(tenant_id, dataset_id, document_id):
                 if not DocumentService.update_by_id(doc.id, {"status": str(status)}):
                     return get_error_data_result(message="Database error (Document update)!")
 
-                settings.docStoreConn.update({"doc_id": doc.id}, {"available_int": status},
-                                             search.index_name(kb.tenant_id), doc.kb_id)
+                settings.docStoreConn.update({"doc_id": doc.id}, {"available_int": status}, search.index_name(kb.tenant_id), doc.kb_id)
                 return get_result(data=True)
             except Exception as e:
                 return server_error_response(e)
@@ -992,14 +984,12 @@ def list_chunks(tenant_id, dataset_id, document_id):
         _ = Chunk(**final_chunk)
 
     elif settings.docStoreConn.indexExist(search.index_name(tenant_id), dataset_id):
-        sres = settings.retrievaler.search(query, search.index_name(tenant_id), [dataset_id], emb_mdl=None,
-                                           highlight=True)
+        sres = settings.retrievaler.search(query, search.index_name(tenant_id), [dataset_id], emb_mdl=None, highlight=True)
         res["total"] = sres.total
         for id in sres.ids:
             d = {
                 "id": id,
-                "content": (rmSpace(sres.highlight[id]) if question and id in sres.highlight else sres.field[id].get(
-                    "content_with_weight", "")),
+                "content": (rmSpace(sres.highlight[id]) if question and id in sres.highlight else sres.field[id].get("content_with_weight", "")),
                 "document_id": sres.field[id]["doc_id"],
                 "docnm_kwd": sres.field[id]["docnm_kwd"],
                 "important_keywords": sres.field[id].get("important_kwd", []),
@@ -1670,8 +1660,7 @@ def update_chunk(tenant_id, dataset_id, document_id, chunk_id):
         q, a = rmPrefix(arr[0]), rmPrefix(arr[1])
         d = beAdoc(d, arr[0], arr[1], not any([rag_tokenizer.is_chinese(t) for t in q + a]))
 
-    v, c = embd_mdl.encode(
-        [doc.name, d["content_with_weight"] if not d.get("question_kwd") else "\n".join(d["question_kwd"])])
+    v, c = embd_mdl.encode([doc.name, d["content_with_weight"] if not d.get("question_kwd") else "\n".join(d["question_kwd"])])
     v = 0.1 * v[0] + 0.9 * v[1] if doc.parser_id != ParserType.QA else v[1]
     d["q_%d_vec" % len(v)] = v.tolist()
     settings.docStoreConn.update({"id": chunk_id}, d, search.index_name(tenant_id), dataset_id)
@@ -1768,8 +1757,7 @@ def retrieval_test(tenant_id):
         if not KnowledgebaseService.accessible(kb_id=id, user_id=tenant_id):
             return get_error_data_result(f"You don't own the dataset {id}.")
     kbs = KnowledgebaseService.get_by_ids(kb_ids)
-    embd_nms = list(set([TenantLLMService.split_model_name_and_factory(kb.embd_id)[0] for kb in
-                         kbs]))  # remove vendor suffix for comparison
+    embd_nms = list(set([TenantLLMService.split_model_name_and_factory(kb.embd_id)[0] for kb in kbs]))  # remove vendor suffix for comparison
     if len(embd_nms) != 1:
         return get_result(
             message='Datasets use different embedding models."',
@@ -1830,8 +1818,7 @@ def retrieval_test(tenant_id):
             rank_feature=label_question(question, kbs),
         )
         if use_kg:
-            ck = settings.kg_retrievaler.retrieval(question, [k.tenant_id for k in kbs], kb_ids, embd_mdl,
-                                                   LLMBundle(kb.tenant_id, LLMType.CHAT))
+            ck = settings.kg_retrievaler.retrieval(question, [k.tenant_id for k in kbs], kb_ids, embd_mdl, LLMBundle(kb.tenant_id, LLMType.CHAT))
             if ck["content_with_weight"]:
                 ranks["chunks"].insert(0, ck)
 
