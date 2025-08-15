@@ -54,7 +54,7 @@ export function findMessageFromList(eventList: IEventList) {
       return;
     }
 
-    nextContent += content;
+    nextContent = content;
   });
 
   const currentIdx = messageEventList.length - 1;

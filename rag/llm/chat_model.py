@@ -116,6 +116,7 @@ class Base(ABC):
 
     def _chat(self, history, gen_conf, **kwargs):
         logging.info("[HISTORY]" + json.dumps(history, ensure_ascii=False, indent=2))
+        print(self.model_name.lower())
         if self.model_name.lower().find("qwen3") >= 0:
             kwargs["extra_body"] = {"enable_thinking": False}
         response = self.client.chat.completions.create(model=self.model_name, messages=history, **gen_conf, **kwargs)
@@ -130,6 +131,7 @@ class Base(ABC):
     def _chat_streamly(self, history, gen_conf, **kwargs):
         logging.info("[HISTORY STREAMLY]" + json.dumps(history, ensure_ascii=False, indent=4))
         reasoning_start = False
+        print(self.model_name.lower())
         response = self.client.chat.completions.create(model=self.model_name, messages=history, stream=True, **gen_conf, stop=kwargs.get("stop"))
         for resp in response:
             if not resp.choices:
@@ -226,6 +228,7 @@ class Base(ABC):
             try:
                 for _ in range(self.max_rounds + 1):
                     logging.info(f"{self.tools=}")
+                    gen_conf["extra_body"] = {"thinking_budget": 200}
                     response = self.client.chat.completions.create(model=self.model_name, messages=history, tools=self.tools, tool_choice="auto", **gen_conf)
                     tk_count += self.total_token_count(response)
                     if any([not response.choices, not response.choices[0].message]):
@@ -311,6 +314,7 @@ class Base(ABC):
                 for _ in range(self.max_rounds + 1):
                     reasoning_start = False
                     logging.info(f"{tools=}")
+                    gen_conf["extra_body"] = {"thinking_budget": 200}
                     response = self.client.chat.completions.create(model=self.model_name, messages=history, stream=True, tools=tools, tool_choice="auto", **gen_conf)
                     final_tool_calls = {}
                     answer = ""
@@ -408,6 +412,7 @@ class Base(ABC):
         ans = ""
         total_tokens = 0
         try:
+            gen_conf["extra_body"] = {"thinking_budget": 200}
             for delta_ans, tol in self._chat_streamly(history, gen_conf, **kwargs):
                 yield delta_ans
                 total_tokens += tol
@@ -780,6 +785,7 @@ class LocalLLM(Base):
     def chat_streamly(self, system, history, gen_conf={}, **kwargs):
         if "max_tokens" in gen_conf:
             del gen_conf["max_tokens"]
+        gen_conf["extra_body"] = {"thinking_budget": 200}
         prompt = self._prepare_prompt(system, history, gen_conf)
         return self._stream_response("/stream", prompt)
 

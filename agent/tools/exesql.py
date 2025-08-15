@@ -30,7 +30,7 @@ class ExeSQLParam(ToolParamBase):
     """
 
     def __init__(self):
-        self.meta:ToolMeta = {
+        self.meta: ToolMeta = {
             "name": "execute_sql",
             "description": "This is a tool that can execute SQL.",
             "parameters": {
@@ -86,7 +86,8 @@ class ExeSQL(ToolBase, ABC):
 
         if self._param.db_type in ["mysql", "mariadb"]:
             db = pymysql.connect(db=self._param.database, user=self._param.username, host=self._param.host,
-                                 port=self._param.port, password=self._param.password)
+                                 port=self._param.port, password=self._param.password,
+                                 max_allowed_packet=64 * 1024 * 1024)
         elif self._param.db_type == 'postgresql':
             db = psycopg2.connect(dbname=self._param.database, user=self._param.username, host=self._param.host,
                                   port=self._param.port, password=self._param.password)
@@ -94,9 +95,9 @@ class ExeSQL(ToolBase, ABC):
             conn_str = (
                     r'DRIVER={ODBC Driver 17 for SQL Server};'
                     r'SERVER=' + self._param.host + ',' + str(self._param.port) + ';'
-                    r'DATABASE=' + self._param.database + ';'
-                    r'UID=' + self._param.username + ';'
-                    r'PWD=' + self._param.password
+                                                                                  r'DATABASE=' + self._param.database + ';'
+                                                                                                                        r'UID=' + self._param.username + ';'
+                                                                                                                                                         r'PWD=' + self._param.password
             )
             db = pyodbc.connect(conn_str)
         try:
@@ -107,7 +108,7 @@ class ExeSQL(ToolBase, ABC):
         sql_res = []
         formalized_content = []
         for single_sql in sqls:
-            single_sql = single_sql.replace('```','')
+            single_sql = single_sql.replace('```', '')
             if not single_sql:
                 continue
             single_sql = re.sub(r"\[ID:[0-9]+\]", "", single_sql)

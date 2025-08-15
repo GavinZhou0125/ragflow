@@ -184,7 +184,10 @@ class LLM(ComponentBase):
 
         if not self.imgs:
             for txt in self.chat_mdl.chat_streamly(msg[0]["content"], msg[1:], self._param.gen_conf(), **kwargs):
-                yield delta(txt)
+                if kwargs.get("delta", True):
+                    yield txt
+                else:
+                    yield delta(txt)
         else:
             for txt in self.chat_mdl.chat_streamly(msg[0]["content"], msg[1:], self._param.gen_conf(), images=self.imgs, **kwargs):
                 yield delta(txt)

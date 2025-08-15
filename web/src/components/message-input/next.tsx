@@ -130,7 +130,7 @@ export function NextMessageInput({
         <Textarea
           value={value}
           onChange={onInputChange}
-          placeholder="Type your message here..."
+          placeholder="您可继续向我提问..."
           className="field-sizing-content min-h-10 w-full resize-none border-0 bg-transparent p-0 shadow-none focus-visible:ring-0 dark:bg-transparent"
           disabled={isUploading || disabled || sendLoading}
           onKeyDown={handleKeyDown}

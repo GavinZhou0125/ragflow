@@ -448,6 +448,7 @@ def agent_completions(tenant_id, agent_id):
     if req.get("stream", True):
 
         def generate():
+            resText = ""
             for answer in agent_completion(tenant_id=tenant_id, agent_id=agent_id, **req):
                 if isinstance(answer, str):
                     try:
@@ -460,7 +461,7 @@ def agent_completions(tenant_id, agent_id):
 
                 yield answer
 
-            yield "data:[DONE]\n\n"
+            yield "data:{\"code\": 0, \"message\": \"\", \"data\": true}\n\n"
 
         resp = Response(generate(), mimetype="text/event-stream")
         resp.headers.add_header("Cache-control", "no-cache")
