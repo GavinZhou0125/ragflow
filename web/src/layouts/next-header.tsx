@@ -20,7 +20,6 @@ import {
   CircleHelp,
   Cpu,
   File,
-  Github,
   House,
   Library,
   MessageSquareText,
@@ -123,15 +122,6 @@ export function Header() {
           className="size-10 mr-[12]"
           onClick={handleLogoClick}
         />
-        <a
-          className="flex items-center gap-1.5 text-text-secondary"
-          target="_blank"
-          href="https://github.com/infiniflow/ragflow"
-          rel="noreferrer"
-        >
-          <Github className="size-4" />
-          {/* <span className=" text-base">21.5k stars</span> */}
-        </a>
       </div>
       <Segmented
         options={options}
