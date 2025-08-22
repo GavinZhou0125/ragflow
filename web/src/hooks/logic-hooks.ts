@@ -185,8 +185,7 @@ export const useSendMessageWithSse = (
       try {
         if (body?.enableGetId) {
           const getIdBody = {
-            secret:
-              '76EB1AEA9DB484E08DA45CFB8964020AD6142B24C02FA3A75698FB55F0030AE213060D7D545FEDB0574583DC624C4FD4',
+            secret: body?.Secret,
             token: '',
             residentId: '',
             code: '',
