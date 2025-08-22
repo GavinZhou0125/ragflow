@@ -393,22 +393,28 @@ export const useScrollToBottom = (
     return () => container.removeEventListener('scroll', handleScroll);
   }, [containerRef, checkIfUserAtBottom]);
 
+  // Imperative scroll function
+  const scrollToBottom = useCallback(() => {
+    if (containerRef?.current) {
+      const container = containerRef.current;
+      container.scrollTo({
+        top: container.scrollHeight - container.clientHeight,
+        behavior: 'smooth',
+      });
+    }
+  }, [containerRef]);
+
   useEffect(() => {
     if (!messages) return;
     if (!containerRef?.current) return;
     requestAnimationFrame(() => {
       setTimeout(() => {
         if (isAtBottomRef.current) {
-          ref.current?.scrollIntoView({ behavior: 'smooth' });
+          scrollToBottom();
         }
-      }, 30);
+      }, 100);
     });
-  }, [messages, containerRef]);
-
-  // Imperative scroll function
-  const scrollToBottom = useCallback(() => {
-    ref.current?.scrollIntoView({ behavior: 'smooth' });
-  }, []);
+  }, [messages, containerRef, scrollToBottom]);
 
   return { scrollRef: ref, isAtBottom, scrollToBottom };
 };
@@ -575,6 +581,15 @@ export const useSelectDerivedMessages = () => {
     setDerivedMessages([]);
   }, [setDerivedMessages]);
 
+  const removeAllMessagesExceptFirst = useCallback(() => {
+    setDerivedMessages((list) => {
+      if (list.length <= 1) {
+        return list;
+      }
+      return list.slice(0, 1);
+    });
+  }, [setDerivedMessages]);
+
   return {
     scrollRef,
     messageContainerRef,
@@ -589,6 +604,7 @@ export const useSelectDerivedMessages = () => {
     removeMessagesAfterCurrentMessage,
     removeAllMessages,
     scrollToBottom,
+    removeAllMessagesExceptFirst,
   };
 };
 
