@@ -14,9 +14,11 @@
 #  limitations under the License.
 #
 import datetime
+import json
 import logging
 import pathlib
 import re
+from collections import deque
 from io import BytesIO
 import time
 import xxhash
@@ -1265,6 +1267,7 @@ def distill_to_vector(tenant_id, med_dataset_id, in_hos_dataset_id):
     in_hos_doc = in_hos_doc[0]
 
     start_year = now.year - 1 if full_year else now.year
+    # 这里抽取
     med_records = MedicalRecordService.get_list_all(datetime.datetime(start_year, now.month - 1, 1), 0)
     in_hos_records = InHospitalRecordService.get_list_all(datetime.datetime(start_year, now.month - 1, 1), 0)
     total_med = len(med_records)
