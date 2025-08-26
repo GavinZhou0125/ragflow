@@ -1269,11 +1269,11 @@ def distill_to_vector(tenant_id, med_dataset_id, in_hos_dataset_id):
 
         json_str = json.dumps(bytes_to_str(record), ensure_ascii=False)
         important_kwd = [
-            record.get("MD_DIS_NAME") or "",
-            record.get("DIS_NAME_1") or "",
-            record.get("DISE_DESC") or "",
+            record.get("BIRTHDAY") or "",
+            record.get("ORGANIZATION_NAME") or "",
+            record.get("MAIN_SYMP") or "",
+            record.get("SUBJ_COMPLAINT") or "",
             record.get("PRES_DRUGS") or "",
-            record.get("ORGAN_NAME") or "",
             record.get("DPT_NAME") or ""
         ]
         chunk_id = xxhash.xxh64((json_str + med_document_id).encode("utf-8")).hexdigest()
@@ -1347,8 +1347,9 @@ def distill_to_vector(tenant_id, med_dataset_id, in_hos_dataset_id):
         important_kwd = [
             record.get("PD_DIS_NAME") or "",
             record.get("PD_DIS_NAME_1") or "",
-            record.get("IH_DPT_NAME") or "",
-            record.get("MD_DIS_DES") or ""
+            record.get("BIRTHDAY") or "",
+            record.get("SUBJ_COMPLAINT") or "",
+            record.get("PD_DIS_NAME") or ""
         ]
         chunk_id = xxhash.xxh64((json_str + in_hos_document_id).encode("utf-8")).hexdigest()
         d = {

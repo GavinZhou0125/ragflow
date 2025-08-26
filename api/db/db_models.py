@@ -968,6 +968,7 @@ class InHospitalRecordToVector(DataBaseModel):
     RSPHY_NAME = CharField(max_length=120, null=True)
     IH_DIS_DATE = CharField(max_length=24, null=True)
     status = IntegerField(default=0, null=False)
+    OP_EM_MARK = IntegerField(default=4, null=False)
 
     class Meta:
         db_table = "INHOSPITALRECORD_to_vector"
