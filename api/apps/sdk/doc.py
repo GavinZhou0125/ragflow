@@ -1269,13 +1269,14 @@ def distill_to_vector(tenant_id, med_dataset_id, in_hos_dataset_id):
 
         json_str = json.dumps(bytes_to_str(record), ensure_ascii=False)
         important_kwd = [
-            record.get("BIRTHDAY") or "",
-            record.get("ORGANIZATION_NAME") or "",
-            record.get("MAIN_SYMP") or "",
-            record.get("SUBJ_COMPLAINT") or "",
-            record.get("PRES_DRUGS") or "",
-            record.get("DPT_NAME") or ""
+            record.get("BIRTHDAY"),
+            record.get("ORGANIZATION_NAME"),
+            record.get("MAIN_SYMP"),
+            record.get("SUBJ_COMPLAINT"),
+            record.get("PRES_DRUGS"),
+            record.get("DPT_NAME"),
         ]
+        important_kwd = [p for p in important_kwd if p not in (None, "")]
         chunk_id = xxhash.xxh64((json_str + med_document_id).encode("utf-8")).hexdigest()
         d = {
             "id": chunk_id,
@@ -1288,6 +1289,10 @@ def distill_to_vector(tenant_id, med_dataset_id, in_hos_dataset_id):
         d["question_kwd"] = [str(q).strip() for q in [] if str(q).strip()]
         d["question_tks"] = rag_tokenizer.tokenize("\n".join([]))
         d["create_time"] = str(datetime.datetime.now()).replace("T", " ")[:19]
+        # 添加生日年份列
+        d['birthday'] = record.get("BIRTHDAY")[0:4] or ""
+        # 根据1男2女映射
+        d['sex'] = {'1': '男', '2': '女'}.get(record.get("SEX"), "")
         d["create_timestamp_flt"] = datetime.datetime.now().timestamp()
         d["kb_id"] = med_dataset_id
         d["docnm_kwd"] = med_doc.name
@@ -1345,12 +1350,13 @@ def distill_to_vector(tenant_id, med_dataset_id, in_hos_dataset_id):
 
         json_str = json.dumps(bytes_to_str(record), ensure_ascii=False)
         important_kwd = [
-            record.get("PD_DIS_NAME") or "",
-            record.get("PD_DIS_NAME_1") or "",
-            record.get("BIRTHDAY") or "",
-            record.get("SUBJ_COMPLAINT") or "",
-            record.get("PD_DIS_NAME") or ""
+            record.get("PD_DIS_NAME"),
+            record.get("PD_DIS_NAME_1"),
+            record.get("BIRTHDAY"),
+            record.get("SUBJ_COMPLAINT"),
+            record.get("PD_DIS_NAME"),
         ]
+        important_kwd = [p for p in important_kwd if p not in (None, "")]
         chunk_id = xxhash.xxh64((json_str + in_hos_document_id).encode("utf-8")).hexdigest()
         d = {
             "id": chunk_id,
@@ -1360,6 +1366,8 @@ def distill_to_vector(tenant_id, med_dataset_id, in_hos_dataset_id):
         d["content_sm_ltks"] = rag_tokenizer.fine_grained_tokenize(d["content_ltks"])
         d["important_kwd"] = important_kwd
         d["important_tks"] = rag_tokenizer.tokenize(" ".join(important_kwd))
+        d['age'] = record.get("BIRTHDAY")[0:4] or ""
+        d['sex'] = {'1': '男', '2': '女'}.get(record.get("SEX"), "")
         d["question_kwd"] = [str(q).strip() for q in [] if str(q).strip()]
         d["question_tks"] = rag_tokenizer.tokenize("\n".join([]))
         d["create_time"] = str(datetime.datetime.now()).replace("T", " ")[:19]
