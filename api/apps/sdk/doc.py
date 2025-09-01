@@ -1275,9 +1275,13 @@ def distill_to_vector(tenant_id, med_dataset_id, in_hos_dataset_id):
             record.get("ORGANIZATION_NAME"),
             record.get("MAIN_SYMP"),
             record.get("SUBJ_COMPLAINT"),
-            record.get("PRES_DRUGS"),
             record.get("DPT_NAME"),
         ]
+
+        # 拆分 PRES_DRUGS
+        pres_drugs = record.get("PRES_DRUGS")
+        if pres_drugs:
+            important_kwd.extend([d.strip() for d in safe_str(pres_drugs).split(",") if d.strip()])
         important_kwd = [safe_str(p) for p in important_kwd if p not in (None, "")]
 
         chunk_id = xxhash.xxh64((json_str + med_document_id).encode("utf-8")).hexdigest()
