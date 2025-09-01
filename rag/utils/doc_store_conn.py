@@ -201,7 +201,7 @@ class DocStoreConnection(ABC):
             indexNames: str|list[str],
             knowledgebaseIds: list[str],
             aggFields: list[str] = [],
-            rank_feature: dict | None = None
+            rank_feature: dict | None = None,
     ):
         """
         Search with given conjunctive equivalent filtering condition and return all fields of matched documents

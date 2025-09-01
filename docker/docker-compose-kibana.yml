@@ -3,8 +3,13 @@ services:
   kibana:
     image: docker.elastic.co/kibana/kibana:8.11.3
     container_name: kibana
+    networks:
+      - ragflow
     ports:
       - "5601:5601"
     environment:
-      ELASTICSEARCH_HOSTS: "http://10.100.52.37:9200"
-      ELASTICSEARCH_SERVICEACCOUNTTOKEN: "AAEAAWVsYXN0aWMva2liYW5hL2tpYmFuYS10b2tlbjpnOFVhZkRMM1FxdWpNbFNPYl8xb1Z3"
+      ELASTICSEARCH_HOSTS: "http://es01:9200"
+      ELASTICSEARCH_SERVICEACCOUNTTOKEN: "AAEAAWVsYXN0aWMva2liYW5hL2tpYmFuYS10b2tlbjo5UDgtbHJld1JMNmlKaWNWSGpJT2pn"
+networks:
+  ragflow:
+    driver: bridge

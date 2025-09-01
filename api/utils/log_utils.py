@@ -53,7 +53,7 @@ def init_root_logger(logfile_basename: str, log_format: str = "%(asctime)-15s %(
 
     logging.captureWarnings(True)
 
-    LOG_LEVELS = os.environ.get("LOG_LEVELS", "")
+    LOG_LEVELS = os.environ.get("LOG_LEVELS", "debug")
     pkg_levels = {}
     for pkg_name_level in LOG_LEVELS.split(","):
         terms = pkg_name_level.split("=")

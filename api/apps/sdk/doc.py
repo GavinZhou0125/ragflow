@@ -16,6 +16,7 @@
 import datetime
 import json
 from api.utils.log_utils import init_root_logger
+from api.utils.validation_utils import safe_str
 
 init_root_logger("ragflow_server")
 import logging
@@ -1163,7 +1164,7 @@ def distill_to_vector(tenant_id, med_dataset_id, in_hos_dataset_id):
     # 删除name为去年本月的document
     try:
         delete_doc_med = DocumentService.query(kb_id=med_dataset_id, name=last_year_str)
-        delete_doc_in_hos = DocumentService.delete_by_ids(kb_id=in_hos_dataset_id, name=last_year_str)
+        delete_doc_in_hos = DocumentService.query(kb_id=in_hos_dataset_id, name=last_year_str)
         if delete_doc_med:
             # 🪣🧱均删
             for delete_doc_item in delete_doc_med:
@@ -1269,14 +1270,16 @@ def distill_to_vector(tenant_id, med_dataset_id, in_hos_dataset_id):
 
         json_str = json.dumps(bytes_to_str(record), ensure_ascii=False)
         important_kwd = [
-            record.get("BIRTHDAY"),
+            f"{(str(record.get('BIRTHDAY')) if record.get('BIRTHDAY') else '')[:3]}0",
+            {'1': '男', '2': '女'}.get(record.get("SEX"), ""),
             record.get("ORGANIZATION_NAME"),
             record.get("MAIN_SYMP"),
             record.get("SUBJ_COMPLAINT"),
             record.get("PRES_DRUGS"),
             record.get("DPT_NAME"),
         ]
-        important_kwd = [p for p in important_kwd if p not in (None, "")]
+        important_kwd = [safe_str(p) for p in important_kwd if p not in (None, "")]
+
         chunk_id = xxhash.xxh64((json_str + med_document_id).encode("utf-8")).hexdigest()
         d = {
             "id": chunk_id,
@@ -1290,7 +1293,7 @@ def distill_to_vector(tenant_id, med_dataset_id, in_hos_dataset_id):
         d["question_tks"] = rag_tokenizer.tokenize("\n".join([]))
         d["create_time"] = str(datetime.datetime.now()).replace("T", " ")[:19]
         # 添加生日年份列
-        d['birthday'] = record.get("BIRTHDAY")[0:4] or ""
+        d['birthYear'] = f"{(str(record.get('BIRTHDAY')) if record.get('BIRTHDAY') else '')[:3]}0",
         # 根据1男2女映射
         d['sex'] = {'1': '男', '2': '女'}.get(record.get("SEX"), "")
         d["create_timestamp_flt"] = datetime.datetime.now().timestamp()
@@ -1352,11 +1355,12 @@ def distill_to_vector(tenant_id, med_dataset_id, in_hos_dataset_id):
         important_kwd = [
             record.get("PD_DIS_NAME"),
             record.get("PD_DIS_NAME_1"),
-            record.get("BIRTHDAY"),
+            f"{(str(record.get('BIRTHDAY')) if record.get('BIRTHDAY') else '')[:3]}0",
+            {'1': '男', '2': '女'}.get(record.get("SEX"), ""),
             record.get("SUBJ_COMPLAINT"),
             record.get("PD_DIS_NAME"),
         ]
-        important_kwd = [p for p in important_kwd if p not in (None, "")]
+        important_kwd = [safe_str(p) for p in important_kwd if p not in (None, "")]
         chunk_id = xxhash.xxh64((json_str + in_hos_document_id).encode("utf-8")).hexdigest()
         d = {
             "id": chunk_id,
@@ -1366,7 +1370,9 @@ def distill_to_vector(tenant_id, med_dataset_id, in_hos_dataset_id):
         d["content_sm_ltks"] = rag_tokenizer.fine_grained_tokenize(d["content_ltks"])
         d["important_kwd"] = important_kwd
         d["important_tks"] = rag_tokenizer.tokenize(" ".join(important_kwd))
-        d['age'] = record.get("BIRTHDAY")[0:4] or ""
+        # 添加生日年份列
+        d['birthYear'] = f"{(str(record.get('BIRTHDAY')) if record.get('BIRTHDAY') else '')[:3]}0",
+        # 根据1男2女映射
         d['sex'] = {'1': '男', '2': '女'}.get(record.get("SEX"), "")
         d["question_kwd"] = [str(q).strip() for q in [] if str(q).strip()]
         d["question_tks"] = rag_tokenizer.tokenize("\n".join([]))
@@ -1810,6 +1816,8 @@ def retrieval_test(tenant_id):
             rerank_mdl=rerank_mdl,
             highlight=highlight,
             rank_feature=label_question(question, kbs),
+            accept_custom_param=req.get("accept_custom_param", False),
+            custom_param=req.get("custom_param", None),
         )
         if use_kg:
             ck = settings.kg_retrievaler.retrieval(question, [k.tenant_id for k in kbs], kb_ids, embd_mdl,

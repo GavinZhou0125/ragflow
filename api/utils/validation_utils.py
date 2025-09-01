@@ -207,6 +207,12 @@ def format_validation_error_message(e: ValidationError) -> str:
 
     return "\n".join(error_messages)
 
+def safe_str(v):
+    if v is None:
+        return ""
+    if isinstance(v, bytes):
+        return v.decode("utf-8", errors="ignore")
+    return str(v)
 
 def normalize_str(v: Any) -> Any:
     """

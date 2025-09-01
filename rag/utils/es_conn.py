@@ -166,9 +166,13 @@ class ESConnection(DocStoreConnection):
                 bqry.filter.append(Q("terms", **{k: v}))
             elif isinstance(v, str) or isinstance(v, int):
                 bqry.filter.append(Q("term", **{k: v}))
+            elif isinstance(v, dict):
+                # 展开字典，逐个添加 term
+                for subk, subv in v.items():
+                    bqry.filter.append(Q("term", **{subk: subv}))
             else:
                 raise Exception(
-                    f"Condition `{str(k)}={str(v)}` value type is {str(type(v))}, expected to be int, str or list.")
+                    f"Condition `{str(k)}={str(v)}` value type is {str(type(v))}, expected int, str, list or dict.")
 
         s = Search()
         vector_similarity_weight = 0.5
