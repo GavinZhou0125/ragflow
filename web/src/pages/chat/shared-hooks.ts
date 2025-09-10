@@ -8,7 +8,7 @@ import { Message } from '@/interfaces/database/chat';
 import { message } from 'antd';
 import { get } from 'lodash';
 import trim from 'lodash/trim';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'umi';
 import { v4 as uuid } from 'uuid';
 import { useHandleMessageInputChange } from './hooks';
@@ -26,13 +26,14 @@ export const useGetSharedChatSearchParams = () => {
   const data = Object.fromEntries(
     searchParams
       .entries()
-      .filter(([key, value]) => key.startsWith(data_prefix))
+      .filter(([key, _]) => key.startsWith(data_prefix))
       .map(([key, value]) => [key.replace(data_prefix, ''), value]),
   );
   return {
     from: searchParams.get('from') as SharedFrom,
     sharedId: searchParams.get('shared_id'),
     locale: searchParams.get('locale'),
+    question: searchParams.get('question'),
     data: data,
     visibleAvatar: searchParams.get('visible_avatar')
       ? searchParams.get('visible_avatar') !== '1'
@@ -45,6 +46,7 @@ export const useSendSharedMessage = () => {
     from,
     sharedId: conversationId,
     data: data,
+    question,
   } = useGetSharedChatSearchParams();
   const { createSharedConversation: setConversation } =
     useCreateNextSharedConversation();
@@ -60,6 +62,8 @@ export const useSendSharedMessage = () => {
     addNewestQuestion,
   } = useSelectDerivedMessages();
   const [hasError, setHasError] = useState(false);
+  const isAutoSent = useRef(false); // 使用ref避免重复发送
+  const isSessionFetched = useRef(false); // 使用ref跟踪会话是否已获取
 
   const sendMessage = useCallback(
     async (message: Message, id?: string) => {
@@ -95,17 +99,49 @@ export const useSendSharedMessage = () => {
   );
 
   const fetchSessionId = useCallback(async () => {
+    // 避免重复获取会话ID
+    if (isSessionFetched.current) return;
+
     const payload = { question: '' };
     const ret = await send({ ...payload, ...data });
     if (isCompletionError(ret)) {
       message.error(ret?.data.message);
       setHasError(true);
     }
-  }, [send]);
+    isSessionFetched.current = true; // 标记会话已获取完成
+  }, [send, data]);
 
   useEffect(() => {
     fetchSessionId();
-  }, [fetchSessionId, send]);
+  }, []); // 移除依赖项，避免无限循环
+
+  // Auto send question when question parameter exists in URL
+  useEffect(() => {
+    if (
+      question &&
+      question.trim() !== '' &&
+      !isAutoSent.current &&
+      done &&
+      isSessionFetched.current
+    ) {
+      isAutoSent.current = true; // 标记已发送，防止重复
+      const id = uuid();
+      setValue(question);
+      addNewestQuestion({
+        content: question,
+        doc_ids: [],
+        id,
+        role: MessageType.User,
+      });
+      handleSendMessage({
+        content: question.trim(),
+        id,
+        role: MessageType.User,
+      });
+      // 发送后清除输入框
+      setValue('');
+    }
+  }, [question, done, setValue, addNewestQuestion, handleSendMessage]);
 
   useEffect(() => {
     if (answer.answer) {
@@ -118,7 +154,6 @@ export const useSendSharedMessage = () => {
       if (trim(value) === '') return;
       const id = uuid();
       if (done) {
-        setValue('');
         addNewestQuestion({
           content: value,
           doc_ids: documentIds,
@@ -130,6 +165,8 @@ export const useSendSharedMessage = () => {
           id,
           role: MessageType.User,
         });
+        // 发送后清除输入框
+        setValue('');
       }
     },
     [addNewestQuestion, done, handleSendMessage, setValue, value],

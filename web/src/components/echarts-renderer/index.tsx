@@ -11,16 +11,20 @@ const EchartsRenderer = ({ option, height = 300 }) => {
   useEffect(() => {
     if (!chartRef.current) return;
 
-    if (!instanceRef.current) {
-      instanceRef.current = echarts.init(chartRef.current);
+    try {
+      if (!instanceRef.current) {
+        instanceRef.current = echarts.init(chartRef.current);
+      }
+
+      const newOption = {
+        ...option,
+        color: option.color || [color],
+      };
+
+      instanceRef.current.setOption(newOption, true);
+    } catch (error) {
+      console.error('ECharts渲染出错:', error);
     }
-
-    const newOption = {
-      ...option,
-      color: option.color || [color],
-    };
-
-    instanceRef.current.setOption(newOption, true);
   }, [option, color]);
 
   return (

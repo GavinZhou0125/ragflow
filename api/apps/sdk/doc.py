@@ -1297,7 +1297,7 @@ def distill_to_vector(tenant_id, med_dataset_id, in_hos_dataset_id):
         d["question_tks"] = rag_tokenizer.tokenize("\n".join([]))
         d["create_time"] = str(datetime.datetime.now()).replace("T", " ")[:19]
         # 添加生日年份列
-        d['birthYear'] = f"{(str(record.get('BIRTHDAY')) if record.get('BIRTHDAY') else '')[:3]}0",
+        d['birthYear'] = f"{(str(record.get('BIRTHDAY')) if record.get('BIRTHDAY') else '')[:3]}0"
         # 根据1男2女映射
         d['sex'] = {'1': '男', '2': '女'}.get(record.get("SEX"), "")
         d["create_timestamp_flt"] = datetime.datetime.now().timestamp()
@@ -1375,7 +1375,7 @@ def distill_to_vector(tenant_id, med_dataset_id, in_hos_dataset_id):
         d["important_kwd"] = important_kwd
         d["important_tks"] = rag_tokenizer.tokenize(" ".join(important_kwd))
         # 添加生日年份列
-        d['birthYear'] = f"{(str(record.get('BIRTHDAY')) if record.get('BIRTHDAY') else '')[:3]}0",
+        d['birthYear'] = f"{(str(record.get('BIRTHDAY')) if record.get('BIRTHDAY') else '')[:3]}0"
         # 根据1男2女映射
         d['sex'] = {'1': '男', '2': '女'}.get(record.get("SEX"), "")
         d["question_kwd"] = [str(q).strip() for q in [] if str(q).strip()]
@@ -1758,6 +1758,14 @@ def retrieval_test(tenant_id):
     if not req.get("dataset_ids"):
         return get_error_data_result("`dataset_ids` is required.")
     kb_ids = req["dataset_ids"]
+    custom_param = {}
+    # 如果有自定义过滤条件，处理年份
+    if req.get("accept_custom_param", False):
+        custom_param = req.get("custom_param", {})
+        if isinstance(custom_param, dict) and "birthYear" in custom_param:
+            birth_year = str(custom_param["birthYear"])
+            if birth_year:  # 非空字符串
+                custom_param["birthYear"] = birth_year[:-1] + "0"
     if not isinstance(kb_ids, list):
         return get_error_data_result("`dataset_ids` should be a list")
     for id in kb_ids:
@@ -1821,7 +1829,7 @@ def retrieval_test(tenant_id):
             highlight=highlight,
             rank_feature=label_question(question, kbs),
             accept_custom_param=req.get("accept_custom_param", False),
-            custom_param=req.get("custom_param", None),
+            custom_param=custom_param,
         )
         if use_kg:
             ck = settings.kg_retrievaler.retrieval(question, [k.tenant_id for k in kbs], kb_ids, embd_mdl,

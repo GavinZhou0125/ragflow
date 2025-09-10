@@ -892,8 +892,16 @@ def retrieval():
 
         embd_mdl = LLMBundle(kbs[0].tenant_id, LLMType.EMBEDDING, llm_name=kbs[0].embd_id)
         rerank_mdl = None
+        custom_param = {}
         if req.get("rerank_id"):
             rerank_mdl = LLMBundle(kbs[0].tenant_id, LLMType.RERANK, llm_name=req["rerank_id"])
+        if req.get("accept_custom_param", False):
+            custom_param = req.get("custom_param", {})
+
+            if isinstance(custom_param, dict) and "birthYear" in custom_param:
+                birth_year = str(custom_param["birthYear"])
+                if birth_year:  # 非空字符串
+                    custom_param["birthYear"] = birth_year[:-1] + "0"
         if req.get("keyword", False):
             chat_mdl = LLMBundle(kbs[0].tenant_id, LLMType.CHAT)
             question += keyword_extraction(chat_mdl, question)
@@ -901,8 +909,8 @@ def retrieval():
                                                similarity_threshold, vector_similarity_weight, top,
                                                doc_ids, rerank_mdl=rerank_mdl, highlight=highlight,
                                                rank_feature=label_question(question, kbs),
-                                               accept_custom_param=req.get("accessCustom", False),
-                                               custom_param=req.get("customParam", None))
+                                               accept_custom_param=req.get("accept_custom_param", False),
+                                               custom_param=custom_param)
         for c in ranks["chunks"]:
             c.pop("vector", None)
         return get_json_result(data=ranks)
