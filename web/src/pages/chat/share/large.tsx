@@ -3,7 +3,7 @@ import MessageItem from '@/components/message-item';
 import { useClickDrawer } from '@/components/pdf-drawer/hooks';
 import { MessageType, SharedFrom } from '@/constants/chat';
 import { useSendButtonDisabled } from '@/pages/chat/hooks';
-import { Flex, Spin } from 'antd';
+import { Flex, Spin, Typography } from 'antd';
 import React, { forwardRef, useMemo } from 'react';
 import {
   useGetSharedChatSearchParams,
@@ -16,11 +16,15 @@ import { useFetchNextConversationSSE } from '@/hooks/chat-hooks';
 import { useFetchFlowSSE } from '@/hooks/flow-hooks';
 import i18n from '@/locales/config';
 import { buildMessageUuidWithRole } from '@/utils/chat';
+import { RightOutlined } from '@ant-design/icons';
 import styles from './index.less';
+
+const { Text } = Typography;
 
 const ChatContainer = () => {
   const {
     sharedId: conversationId,
+    data,
     from,
     locale,
     visibleAvatar,
@@ -38,8 +42,22 @@ const ChatContainer = () => {
     derivedMessages,
     hasError,
     stopOutputMessage,
+    setValue, // 添加setValue以便更新输入框的值
   } = useSendSharedMessage();
   const sendDisabled = useSendButtonDisabled(value);
+
+  // 定义可以问的问题列表
+  const suggestedQuestions = [
+    '请对我近期的健康状况进行全方位分析',
+    '查询最近一次检验结果',
+    '查询家庭医生签约信息',
+    '查询慢病管理信息',
+  ];
+
+  // 点击建议问题时，将问题设置到输入框中
+  const handleSuggestedQuestionClick = (question: string) => {
+    setValue(question);
+  };
 
   const useFetchAvatar = useMemo(() => {
     return from === SharedFrom.Agent
@@ -65,29 +83,77 @@ const ChatContainer = () => {
             <Spin spinning={loading}>
               {derivedMessages?.map((message, i) => {
                 return (
-                  <MessageItem
-                    visibleAvatar={visibleAvatar}
-                    key={buildMessageUuidWithRole(message)}
-                    avatarDialog={avatarData?.avatar}
-                    item={message}
-                    nickname="You"
-                    reference={buildMessageItemReference(
-                      {
-                        message: derivedMessages,
-                        reference: [],
-                      },
-                      message,
-                    )}
-                    loading={
-                      message.role === MessageType.Assistant &&
-                      sendLoading &&
-                      derivedMessages?.length - 1 === i
-                    }
-                    index={i}
-                    clickDocumentButton={clickDocumentButton}
-                    showLikeButton={false}
-                    showLoudspeaker={false}
-                  ></MessageItem>
+                  <div key={buildMessageUuidWithRole(message)}>
+                    {i === 0 &&
+                      (!data || !Object.hasOwn(data, 'showSuggestType')) && (
+                        <MessageItem
+                          visibleAvatar={visibleAvatar}
+                          avatarDialog={avatarData?.avatar}
+                          item={message}
+                          nickname="You"
+                          reference={buildMessageItemReference(
+                            {
+                              message: derivedMessages,
+                              reference: [],
+                            },
+                            message,
+                          )}
+                          loading={
+                            message.role === MessageType.Assistant &&
+                            sendLoading &&
+                            derivedMessages?.length - 1 === i
+                          }
+                          index={i}
+                          clickDocumentButton={clickDocumentButton}
+                          showLikeButton={false}
+                          showLoudspeaker={false}
+                        ></MessageItem>
+                      )}
+                    {i === 0 &&
+                      data &&
+                      Object.hasOwn(data, 'showSuggestType') && (
+                        <div style={{ borderRadius: '10px' }}>
+                          <div className="relative">
+                            {/* 背景块 */}
+                            <div
+                              style={{ borderBottom: '1px solid #e8e8e8' }}
+                              className="bg-[url('@/assets/neu/banner.png')] flex justify-center items-center bg-cover rounded-2xl m-w-[351px] h-[80px] mt-3"
+                            >
+                              {/* 头像 */}
+                              <div className="absolute left-[24px] -top-2 w-[86px] h-[88px] bg-[url('@/assets/neu/mindle-age-woman.png')] bg-cover" />
+                              {/* 文本内容 */}
+                              <div className="text-center ml-6">
+                                <div className="text-[12px] text-gray-600">
+                                  Hi，我是您的数字健康人
+                                </div>
+                                <div className="text-[14px] font-bold text-gray-900">
+                                  您可以试着向我提这些问题
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* 问题列表 */}
+                            {suggestedQuestions.map((question, index) => (
+                              <div
+                                key={index}
+                                onClick={() =>
+                                  handleSuggestedQuestionClick(question)
+                                }
+                                className="flex justify-between items-center h-[40px]"
+                                style={{
+                                  cursor: 'pointer',
+                                  padding: '8px 16px',
+                                  color: '#1890ff',
+                                }}
+                              >
+                                <Text>{question}</Text>
+                                <RightOutlined style={{ color: '#000000' }} />
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                  </div>
                 );
               })}
             </Spin>
