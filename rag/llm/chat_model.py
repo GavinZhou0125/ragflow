@@ -282,7 +282,9 @@ class Base(ABC):
                 if index not in final_tool_calls:
                     final_tool_calls[index] = tool_call
 
-                final_tool_calls[index].function.arguments += tool_call.function.arguments
+                existing_args = getattr(final_tool_calls[index].function, "arguments", "") or ""
+                new_args = getattr(tool_call.function, "arguments", "") or ""
+                final_tool_calls[index].function.arguments = existing_args + new_args
 
         return final_tool_calls
 
@@ -311,7 +313,9 @@ class Base(ABC):
                             if index not in final_tool_calls:
                                 final_tool_calls[index] = tool_call
                             else:
-                                final_tool_calls[index].function.arguments += tool_call.function.arguments
+                                existing_args = getattr(final_tool_calls[index].function, "arguments", "") or ""
+                                new_args = getattr(tool_call.function, "arguments", "") or ""
+                                final_tool_calls[index].function.arguments = existing_args + new_args
                     else:
                         if not resp.choices:
                             continue

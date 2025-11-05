@@ -77,15 +77,20 @@ const ChatContainer = () => {
 
   return (
     <>
-      <Flex flex={1} className={styles.chatContainer} vertical>
+      <Flex
+        flex={1}
+        className={styles.chatContainer}
+        vertical
+        style={{ background: '#F6F6F6' }}
+      >
         <Flex flex={1} vertical className={styles.messageContainer}>
           <div>
             <Spin spinning={loading}>
               {derivedMessages?.map((message, i) => {
                 return (
                   <div key={buildMessageUuidWithRole(message)}>
-                    {i === 0 &&
-                      (!data || !Object.hasOwn(data, 'showSuggestType')) && (
+                    {i !== 0 &&
+                      (!data || Object.hasOwn(data, 'showSuggestType')) && (
                         <MessageItem
                           visibleAvatar={visibleAvatar}
                           avatarDialog={avatarData?.avatar}
@@ -109,20 +114,46 @@ const ChatContainer = () => {
                           showLoudspeaker={false}
                         ></MessageItem>
                       )}
+                    {!Object.hasOwn(data, 'showSuggestType') && (
+                      <MessageItem
+                        visibleAvatar={visibleAvatar}
+                        avatarDialog={avatarData?.avatar}
+                        item={message}
+                        nickname="You"
+                        reference={buildMessageItemReference(
+                          {
+                            message: derivedMessages,
+                            reference: [],
+                          },
+                          message,
+                        )}
+                        loading={
+                          message.role === MessageType.Assistant &&
+                          sendLoading &&
+                          derivedMessages?.length - 1 === i
+                        }
+                        index={i}
+                        clickDocumentButton={clickDocumentButton}
+                        showLikeButton={false}
+                        showLoudspeaker={false}
+                      ></MessageItem>
+                    )}
                     {i === 0 &&
                       data &&
                       Object.hasOwn(data, 'showSuggestType') && (
-                        <div style={{ borderRadius: '10px' }}>
+                        <div
+                          style={{ borderRadius: '10px', background: 'white' }}
+                        >
                           <div className="relative">
                             {/* 背景块 */}
                             <div
                               style={{ borderBottom: '1px solid #e8e8e8' }}
-                              className="bg-[url('@/assets/neu/banner.png')] flex justify-center items-center bg-cover rounded-2xl m-w-[351px] h-[80px] mt-3"
+                              className="bg-[url('@/assets/neu/banner.png')] flex justify-center items-center bg-cover rounded-[10px] m-w-[351px] h-[80px] mt-3"
                             >
                               {/* 头像 */}
-                              <div className="absolute left-[24px] -top-2 w-[86px] h-[88px] bg-[url('@/assets/neu/mindle-age-woman.png')] bg-cover" />
+                              <div className="absolute left-[18px] -top-2 w-[86px] h-[88px] bg-[url('@/assets/neu/mindle-age-woman.png')] bg-cover" />
                               {/* 文本内容 */}
-                              <div className="text-center ml-6">
+                              <div className="text-center ml-8">
                                 <div className="text-[12px] text-gray-600">
                                   Hi，我是您的数字健康人
                                 </div>

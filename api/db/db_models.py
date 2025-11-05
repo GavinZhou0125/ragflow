@@ -896,6 +896,7 @@ class MedicalRecordToVector(DataBaseModel):
     ORGANIZATION_NAME = TextField(null=False, help_text='组织机构名称')
     RESOURCE_ID = CharField(max_length=255, null=False, help_text='资源信息ID')
     OP_EM_MARK = CharField(max_length=1, null=True, help_text='门诊/急诊标志')
+    CARDNO = CharField(max_length=150, null=True, help_text='身份证号')
     OP_EM_NO = CharField(max_length=36, null=True, help_text='门诊/急诊号')
     SEE_DOC_DT = CharField(max_length=50, null=True, help_text='就诊时间')
     SEX = CharField(max_length=1, null=True, help_text='患者性别')

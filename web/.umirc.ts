@@ -39,7 +39,15 @@ export default defineConfig({
   proxy: [
     {
       context: ['/api', '/v1'],
-      target: 'http://10.100.52.37:9380/',
+      target: 'http://localhost:9380',
+      changeOrigin: true,
+      ws: true,
+      logLevel: 'silent',
+      // pathRewrite: { '^/v1': '/v1' },
+    },
+    {
+      context: ['/ehr'],
+      target: 'http://10.100.52.60/',
       changeOrigin: true,
       ws: true,
       logLevel: 'silent',

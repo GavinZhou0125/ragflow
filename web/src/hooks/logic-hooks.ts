@@ -192,7 +192,7 @@ export const useSendMessageWithSse = (
             serialNumber: '',
           };
           const Response = await fetch(
-            'http://10.100.52.60/ehr/authentication',
+            'http://172.39.168.48:8088/ehr/authentication',
             {
               method: 'POST',
               headers: {
